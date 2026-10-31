@@ -38,3 +38,9 @@ A primeira tentativa com govulncheck 1.1.4 encontrou incompatibilidade interna c
 Executar workflow_dispatch, resolver o gate de segurança e conferir ambos os builds. Instalar/atualizar com usuário de teste preservando Peer ID, contato e mensagem; desinstalar preservando o perfil; testar Linux Mint e ping/mensagens bidirecionais entre PCs da mesma VPN. Depois fornecer URL real, revisar arquivos/autoria Git e autorizar o push/tag/publicação. Configurar Required reviewers no ambiente github-release; o YAML sozinho não ativa aprovação.
 
 O instalador também incorpora e instala LICENSE.txt (MIT) e THIRD_PARTY_LICENSES.zip com avisos/inventários de dependências. A verificação de payload confere os hashes desses arquivos. O desinstalador remove esses arquivos do programa, sem acessar o perfil. ZIP portátil e tar.gz também carregam as licenças.
+
+## Conferência do arquivo-fonte
+
+O ZIP fonte foi extraído fora do projeto de trabalho: go test ./... e go vet ./... passaram também nessa cópia, sem os payloads gerados do instalador e usando o placeholder de assets. Uma tentativa adicional de npm ci nessa cópia foi interrompida por EPERM ao criar node_modules/@types; a instalação limpa do frontend nessa cópia não foi concluída. Os 3 testes e o build frontend passaram no projeto principal. A execução limpa completa dos workflows no GitHub ainda é necessária.
+
+Integridade dos ZIPs, exclusão de perfis/logs privados, ELF/permissão 0755 do pacote CLI Linux e checksums finais foram conferidos. Git local está na branch main, com commit inicial auditado, sem remoto configurado e sem envio.
