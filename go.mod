@@ -9,7 +9,7 @@ require (
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/wailsapp/wails/v2 v2.17.0
 	go.etcd.io/bbolt v1.5.0
-	golang.org/x/sys v0.48.0
+	golang.org/x/sys v0.49.0
 )
 
 require (
