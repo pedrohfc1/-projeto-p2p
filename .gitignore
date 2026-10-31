@@ -1,0 +1,44 @@
+# Perfis privados / identidades / conversas
+/data/
+/profiles/
+*.key
+*.pem
+*.p12
+*.pfx
+*.db
+*.db-*
+*.sqlite*
+.env
+.env.*
+!.env.example
+credentials*.json
+settings.local.json
+# Go / Wails / Node / instaladores
+/dist/
+/build/bin/
+/frontend/node_modules/
+/frontend/wailsjs/
+/frontend/dist/*
+!/frontend/dist/.gitkeep
+/build/windows/installer/tmp/
+/cmd/p2p-setup/payload/*.exe
+/cmd/p2p-setup/payload/*.gz
+*.exe
+*.syso
+*.test
+*.out
+*.log
+*.tmp
+*.bak
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+# Logs locais contêm caminhos de máquina; relatórios revisados ficam em docs.
+/docs/evidence/
+
+/cmd/p2p-setup/payload/LICENSE.txt
+/cmd/p2p-setup/payload/*.zip

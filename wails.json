@@ -1,0 +1,11 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "ProjetoP2P",
+  "outputfilename": "ProjetoP2P",
+  "frontend:install": "npm ci",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {"name": "Projeto P2P", "email": ""},
+  "info": {"companyName":"ProjetoP2P","productName":"ProjetoP2P","productVersion":"0.4.0","copyright":"Projeto P2P","comments":"Mensageiro descentralizado"}
+}

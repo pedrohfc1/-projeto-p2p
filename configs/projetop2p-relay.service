@@ -1,0 +1,25 @@
+[Unit]
+Description=Projeto P2P Bootstrap + Circuit Relay v2
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=projetop2p
+Group=projetop2p
+WorkingDirectory=/opt/projeto-p2p
+EnvironmentFile=/etc/projetop2p/relay.env
+StateDirectory=projetop2p-relay
+StateDirectoryMode=0700
+ExecStart=/opt/projeto-p2p/dist/projetop2p-linux-amd64 --data /var/lib/projetop2p-relay --listen /ip4/0.0.0.0/tcp/4001 --announce ${P2P_PUBLIC_ADDR} --relay-server --public --daemon --status-every 30s
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

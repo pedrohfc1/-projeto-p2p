@@ -1,0 +1,17 @@
+# Ameaças e limites desktop 0.2
+
+Os controles de assinatura, tamanho de quadros/texto, janela temporal, replay, timeouts e recursos da 0.1 permanecem. A 0.2 adiciona banco transacional, convites assinados e uso explícito de conexões limitadas de relay. O histórico deduplica `(remetente, ID da mensagem)` em disco; o cache de rejeição de replay em memória continua sendo perdido ao reiniciar. Não existe garantia de entrega exatamente uma vez.
+
+Convites são limitados a 24 mil caracteres, 16 endereços próprios, 16 relays e nome de até 80 bytes. Peer ID, chave pública e assinatura precisam concordar; endereços próprios precisam terminar no mesmo ID. Convites expiram em sete dias. Aceitar um convite autoriza tentativas de conexão aos endereços públicos nele informados, que podem incluir rede privada. Isso pode alcançar serviços internos: não aceite convites de origem desconhecida em máquinas com acesso privilegiado. Não há identidade civil verificada, reputação, revogação ou proteção completa contra Sybil/eclipse.
+
+Perfis têm até 256 contatos. O histórico retém até 10 mil mensagens totais e carrega no máximo as 300 mais recentes por conversa. A retenção é fixa na 0.2; não há exportação, busca completa ou ajuste de retenção na interface. bbolt exige abertura exclusiva do arquivo e transações. Identidade é criada antes do banco, mantendo a proteção Linux/DPAPI. Não há criptografia de conteúdo do banco no aplicativo; utilize os mecanismos de proteção do sistema operacional para o computador e seus backups.
+
+O ACK desktop ocorre após commit local. Confirmação perdida pode produzir estado `sem confirmação` mesmo quando houve recebimento; o programa explica esse caso. `Confirmada` não significa lida. Mensagens antigas não são enfileiradas automaticamente para entrega offline. Conteúdo recebido é renderizado como texto React, sem HTML arbitrário.
+
+A janela usa assets locais e IPC Wails. Nenhum servidor HTTP de controle faz parte do executável desktop. O harness `tests/webui` é somente QA: escuta 127.0.0.1, limita requisições e exige token aleatório por execução e origem exata. Não o exponha por proxy nem o use como servidor público.
+
+Relays têm quotas de reservas, circuitos, bytes e duração documentadas em relay-operations.md. Não há limite agregado de Mbps implementado: o operador deve aplicar shaping/quotas externos caso necessário. Fonte de candidatos é limitada a 32 registros, AutoRelay mantém até dois relays, e endereços conhecidos por contato são limitados a 16. Quotas não eliminam DoS nem impedem múltiplas identidades/IPs. Publicar um namespace DHT não torna um operador confiável.
+
+Modo assistido define alcance privado por política para iniciar reservas; não é prova de medição de NAT. Modo automático usa a avaliação AutoNAT. AutoRelay publica circuitos com endereços públicos dos relays e gerencia reservas/renovações. Identify, Noise e DCUtR ficam a cargo das versões fixadas do libp2p. As limitações de NAT, firewall e disponibilidade continuam válidas. Não desative autenticação, isolamento do navegador ou firewall indiscriminadamente para conseguir conectar.
+
+App/instalador não têm assinatura de distribuição. Certificado, canal de atualização, auditoria, testes adversariais e validação em CGNAT real são necessários antes de distribuição pública ampla. Sem blockchain, voz, conteúdo distribuído ou criptografia de histórico ponta a ponta implementados.

@@ -1,0 +1,140 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.3'
+      - run: python3 scripts/check-version.py
+      - run: python3 scripts/audit-public.py
+      - run: python3 tests/distribution_test.py
+      - name: Workflow validation and secret scanner
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          go install github.com/zricethezav/gitleaks/v8@v8.30.1
+          actionlint
+          python3 scripts/scan-secrets.py
+  build:
+    needs: audit
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.3'
+          cache: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+          echo 'GOFLAGS=-tags=webkit2_41' >> "$GITHUB_ENV"
+      - name: Frontend tests and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm test
+          npm run build
+          npm audit --audit-level=high
+      - name: Go tests and dependencies
+        run: |
+          go mod verify
+          go test ./... -count=1 -timeout=180s
+          go vet ./...
+      - name: Race detector
+        if: runner.os == 'Linux'
+        run: |
+          go test -race ./internal/... -count=1 -timeout=180s
+      - run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
+      - name: Dependency licenses
+        run: python scripts/collect-licenses.py
+      - name: Desktop Windows and real installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./scripts/desktop.ps1 -Installer
+          ./tests/installer-smoke.ps1
+          ./scripts/build.ps1
+          if ($LASTEXITCODE -ne 0) {throw 'CLI build failed'}
+      - name: Desktop Linux and runtime package
+        if: runner.os == 'Linux'
+        run: |
+          sh scripts/desktop-linux.sh
+          sh scripts/build.sh
+          test "$(build/bin/ProjetoP2P --version)" = "$(cat VERSION)"
+          python3 scripts/package-distribution.py linux
+      - name: Local network regression Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python tests/cli_smoke.py dist/projetop2p-windows-amd64.exe
+          if ($LASTEXITCODE -ne 0) {throw 'CLI smoke failed'}
+          python tests/relay_cli_smoke.py dist/projetop2p-windows-amd64.exe
+          if ($LASTEXITCODE -ne 0) {throw 'Relay smoke failed'}
+          go build -buildvcs=false -o dist/webui.exe ./tests/webui
+          if ($LASTEXITCODE -ne 0) {throw 'API harness build failed'}
+          python tests/webui_smoke.py dist/webui.exe
+          if ($LASTEXITCODE -ne 0) {throw 'Desktop API smoke failed'}
+          python scripts/package-distribution.py windows
+          if ($LASTEXITCODE -ne 0) {throw 'Windows package failed'}
+      - name: Local network regression Linux
+        if: runner.os == 'Linux'
+        run: |
+          python3 tests/cli_smoke.py dist/projetop2p-linux-amd64
+          python3 tests/relay_cli_smoke.py dist/projetop2p-linux-amd64
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-${{ runner.os }}
+          path: dist/release/*
+          if-no-files-found: error
+          retention-days: 14
+  security:
+    needs: audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.3'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+          npm --prefix frontend ci
+          npm --prefix frontend run build
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+      - name: Vulnerability gate (findings block publication, not build artifacts)
+        env:
+          GOFLAGS: -tags=webkit2_41
+        run: govulncheck ./...
