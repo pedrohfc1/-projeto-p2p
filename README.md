@@ -6,11 +6,7 @@ Mensageiro desktop experimental com identidade criptográfica persistente e comu
 
 **Usuários Windows não precisam instalar Go, Node.js ou ferramentas de desenvolvimento.** Baixe `ProjetoP2P-Setup-v0.4.0.exe`, feche versões anteriores e execute o instalador. Requisitos: Windows 10/11 AMD64 e Microsoft Edge WebView2; o instalador oferece o runtime Microsoft se ausente (internet necessária). Instala por usuário, oferece atalhos e desinstalador e preserva o perfil existente. O aplicativo e o setup ainda não têm assinatura digital de distribuição; não desative as proteções do Windows.
 
-**Download mais recente:** a publicação ainda está pendente, inclusive pelo aviso DHT [GO-2024-3218](https://pkg.go.dev/vuln/GO-2024-3218), que bloqueia o gate de segurança. O mantenedor substituirá o modelo abaixo somente após informar o endereço real do repositório:
-
-```text
-https://github.com/USUARIO/REPOSITORIO/releases/latest
-```
+**[Baixar a versão mais recente](https://github.com/pedrohfc1/-projeto-p2p/releases/latest)** — endereço configurado para o repositório informado. A primeira publicação ainda está pendente; o link só disponibilizará downloads após uma release publicada. O aviso DHT [GO-2024-3218](https://pkg.go.dev/vuln/GO-2024-3218) continua bloqueando o gate de segurança.
 
 Na release, escolha o instalador Windows; o ZIP portátil é uma alternativa identificada separadamente. `SHA256SUMS.txt` permite conferir os arquivos. No Linux Mint 22 AMD64, use o pacote desktop `ProjetoP2P-v0.4.0-linux-amd64.tar.gz`, com GTK3 e WebKitGTK 4.1 disponíveis no sistema. [Instalação e atualização](docs/INSTALACAO.md).
 

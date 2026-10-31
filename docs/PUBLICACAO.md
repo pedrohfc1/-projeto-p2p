@@ -2,9 +2,9 @@
 
 ## Estado atual
 
-Código local preparado em Git/main, licença MIT confirmada, versão mantida em 0.4.0. Não foi criado repositório remoto, feito push, enviada tag ou publicada release. USUARIO/REPOSITORIO são modelos, não um destino conhecido. Não é necessário token pessoal nos workflows.
+Código local preparado em Git/main, licença MIT confirmada, versão mantida em 0.4.0. Não foi criado repositório remoto, feito push, enviada tag ou publicada release. Destino informado: https://github.com/pedrohfc1/-projeto-p2p.git ; remoto local origin configurado, sem envio. Não é necessário token pessoal nos workflows.
 
-Antes de publicar, é necessário informar a URL real e confirmar a publicação. A versão 0.4.0 não foi retrocedida para 0.3.0: ela já inclui as funcionalidades Radmin da 0.4.
+A URL real já foi informada; antes de publicar, ainda é necessário confirmar o envio. A versão 0.4.0 não foi retrocedida para 0.3.0: ela já inclui as funcionalidades Radmin da 0.4.
 
 **Bloqueio de segurança conhecido:** govulncheck 1.9.0 identifica GO-2024-3218 no Kademlia DHT, sem versão corrigida conhecida. A CI mantém o achado visível e o job de segurança falha; o job publicador não executa enquanto esse gate falhar. Não há exceção silenciosa nem suppressão. Resolver a dependência/mitigação ou decidir uma política de exceção explícita, fundamentada e revisada pelo mantenedor requer trabalho separado antes da publicação. Em VPN a DHT está desativada, mas a distribuição conserva o modo nativo. Consulte SECURITY.md.
 
@@ -14,7 +14,7 @@ Antes de publicar, é necessário informar a URL real e confirmar a publicação
 2. Configure proteção da main para exigir revisão e CI. Habilite Private vulnerability reporting, secret scanning/push protection quando disponíveis e Dependabot.
 3. Em Settings → Environments crie `github-release` e configure **Required reviewers**. O workflow referencia esse ambiente, mas o YAML sozinho não cria a exigência de aprovação: sem configuração no GitHub essa proteção não existe. Limite as tags permitidas conforme a política do projeto. Não avance para tags sem essa revisão.
 4. Use a permissão padrão de Actions somente leitura. O YAML dá contents: write exclusivamente ao job publish; não adicione PAT em código, variáveis de frontend ou arquivos .env.
-5. Substitua o modelo de download no README pela URL real `/releases/latest`, e só então confirme o envio. Links relativos internos já funcionam no GitHub.
+5. Confira o link `/releases/latest` já atualizado no README e confirme o envio. Links relativos internos já funcionam no GitHub.
 
 Fontes oficiais: https://docs.github.com/en/actions/reference/security/secure-use e https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments . Actions oficiais foram verificadas na API GitHub e fixadas por SHA; Dependabot propõe atualizações para revisão.
 
@@ -39,12 +39,12 @@ Com o destino real autorizado, os comandos são:
 git add .
 git diff --cached --check
 git commit -m "Preparar Projeto P2P 0.4.0 para distribuição"
-git remote add origin https://github.com/USUARIO/REPOSITORIO.git
+git remote get-url origin
 git remote -v
 git push -u origin main
 ```
 
-Não execute os comandos de remote/push com o modelo literal. Se já houver origin, confira o destino antes de alterá-lo. Nenhum desses envios foi executado nesta preparação.
+origin já foi configurado localmente. Confira seu destino antes de executar o push. Nenhum desses envios foi executado nesta preparação.
 
 ## Testar workflow sem publicar
 

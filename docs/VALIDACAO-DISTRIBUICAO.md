@@ -1,6 +1,6 @@
 # Validação da preparação pública — 31/10/2026
 
-Versão 0.4.0, licença MIT confirmada. Nenhum código, token, instalador ou release foi enviado ao GitHub. O destino remoto ainda não foi informado.
+Versão 0.4.0, licença MIT confirmada. Nenhum código, token, instalador ou release foi enviado ao GitHub. Destino informado posteriormente: https://github.com/pedrohfc1/-projeto-p2p.git ; origin configurado localmente, sem envio.
 
 ## Executado localmente
 
@@ -27,7 +27,7 @@ A primeira tentativa com govulncheck 1.1.4 encontrou incompatibilidade interna c
 
 ## Não executado
 
-- Workflows no GitHub: sem repositório/destino e sem publicação autorizada.
+- Workflows no GitHub: destino informado, mas envio/publicação ainda não autorizados.
 - Build/execução desktop Linux Mint: ambiente Windows sem WSL/distribuição Linux disponível. O workflow usa runner Ubuntu 24.04 e GTK3/WebKitGTK 4.1 para gerar o tar.gz desktop nativo.
 - Instalação/atualização/desinstalação completas, atalhos e janela WebView2 em Windows 10/11 de aceitação. Payload verificado não comprova essas ações; testes do backend comprovam persistência do perfil, não o fluxo completo do instalador.
 - Conexão Radmin real entre dois PCs Windows; não há adaptador Radmin ativo aqui. Os testes por fixtures e o roteiro manual permanecem distintos.
@@ -35,7 +35,7 @@ A primeira tentativa com govulncheck 1.1.4 encontrou incompatibilidade interna c
 
 ## Aceitação antes da publicação
 
-Executar workflow_dispatch, resolver o gate de segurança e conferir ambos os builds. Instalar/atualizar com usuário de teste preservando Peer ID, contato e mensagem; desinstalar preservando o perfil; testar Linux Mint e ping/mensagens bidirecionais entre PCs da mesma VPN. Depois fornecer URL real, revisar arquivos/autoria Git e autorizar o push/tag/publicação. Configurar Required reviewers no ambiente github-release; o YAML sozinho não ativa aprovação.
+Executar workflow_dispatch, resolver o gate de segurança e conferir ambos os builds. Instalar/atualizar com usuário de teste preservando Peer ID, contato e mensagem; desinstalar preservando o perfil; testar Linux Mint e ping/mensagens bidirecionais entre PCs da mesma VPN. Depois revisar arquivos/autoria Git e autorizar o push/tag/publicação para a URL informada. Configurar Required reviewers no ambiente github-release; o YAML sozinho não ativa aprovação.
 
 O instalador também incorpora e instala LICENSE.txt (MIT) e THIRD_PARTY_LICENSES.zip com avisos/inventários de dependências. A verificação de payload confere os hashes desses arquivos. O desinstalador remove esses arquivos do programa, sem acessar o perfil. ZIP portátil e tar.gz também carregam as licenças.
 
@@ -43,4 +43,4 @@ O instalador também incorpora e instala LICENSE.txt (MIT) e THIRD_PARTY_LICENSE
 
 O ZIP fonte foi extraído fora do projeto de trabalho: go test ./... e go vet ./... passaram também nessa cópia, sem os payloads gerados do instalador e usando o placeholder de assets. Uma tentativa adicional de npm ci nessa cópia foi interrompida por EPERM ao criar node_modules/@types; a instalação limpa do frontend nessa cópia não foi concluída. Os 3 testes e o build frontend passaram no projeto principal. A execução limpa completa dos workflows no GitHub ainda é necessária.
 
-Integridade dos ZIPs, exclusão de perfis/logs privados, ELF/permissão 0755 do pacote CLI Linux e checksums finais foram conferidos. Git local está na branch main, com commit inicial auditado, sem remoto configurado e sem envio.
+Integridade dos ZIPs, exclusão de perfis/logs privados, ELF/permissão 0755 do pacote CLI Linux e checksums finais foram conferidos. Git local está na branch main, com commit inicial auditado, com remoto origin configurado para a URL informada e sem envio.
