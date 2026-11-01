@@ -10,6 +10,7 @@ require (
 	github.com/wailsapp/wails/v2 v2.17.0
 	go.etcd.io/bbolt v1.5.0
 	golang.org/x/sys v0.48.0
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
@@ -134,6 +135,5 @@ require (
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.50.0 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
-	google.golang.org/protobuf v1.36.12 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 )
