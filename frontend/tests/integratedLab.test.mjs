@@ -1,0 +1,2 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';
+test('laboratório separado, segredo não persistido e nenhuma captura de mídia',async()=>{const s=await readFile('src/IntegratedLab.tsx','utf8');assert.ok(s.includes('não muda a rede dos contatos e comunidades'));assert.ok(s.includes('auxiliar'));assert.ok(!s.includes('localStorage'));assert.ok(!s.includes('getUserMedia'));assert.ok(!s.includes('getDisplayMedia'));assert.ok(s.includes('type="password"'));assert.ok(s.includes('sem alterar firewall'));});

@@ -16,6 +16,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	"projetop2p/internal/adapters"
 	"projetop2p/internal/communities"
+	"projetop2p/internal/easytierlab"
 	"projetop2p/internal/endpoint"
 	"projetop2p/internal/identity"
 	"projetop2p/internal/invite"
@@ -26,6 +27,8 @@ import (
 )
 
 type Core struct {
+	labMu      sync.Mutex
+	lab        *easytierlab.Lab
 	mu         sync.Mutex
 	db         *localdb.DB
 	node       *network.Node
@@ -166,6 +169,7 @@ func (c *Core) receiveScoped(m messaging.Message, scope string) error {
 }
 func (c *Core) Close() error {
 	c.cancel()
+	c.StopIntegratedLab()
 	if c.groups != nil {
 		c.groups.Close()
 	}

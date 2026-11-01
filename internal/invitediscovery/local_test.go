@@ -45,6 +45,11 @@ func TestLocalReplicasAuthorizationTamperingExpiryRevocation(t *testing.T) {
 	if _, e = b.Resolve(r.Code(), now.Add(2*time.Hour)); e == nil {
 		t.Fatal("expired")
 	}
+	got, _ := a.Resolve(r.Code(), now)
+	got.Signature[0] ^= 1
+	if _, e = a.Resolve(r.Code(), now); e != nil {
+		t.Fatal("caller mutated stored record", e)
+	}
 	changed := r
 	changed.Expires++
 	if _, e = changed.Verify(r.Code(), now); e == nil {

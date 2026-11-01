@@ -46,7 +46,7 @@ func New(key crypto.PrivKey, raw string, ttl time.Duration, now time.Time) (Reco
 	}
 	r := Record{Domain: "projetop2p/invite-record/1", Owner: i.Owner, Key: pub, Nonce: hex.EncodeToString(nonce), Invite: raw, Expires: now.Add(ttl).Unix()}
 	r.Signature, e = key.Sign(r.payload())
-	return r, e
+	return clone(r), e
 }
 func (r Record) Verify(code string, now time.Time) (community.Invite, error) {
 	i, e := community.ParseInvite(r.Invite, now)
@@ -116,7 +116,7 @@ func (m *Mirror) Put(r Record, verifiedLocalState community.State, localPeer str
 	if _, ok := m.records[r.Code()]; !ok && len(m.records) >= 64 {
 		return errors.New("local mirror limit")
 	}
-	m.records[r.Code()] = r
+	m.records[r.Code()] = clone(r)
 	return nil
 }
 func (m *Mirror) Resolve(code string, now time.Time) (Record, error) {
@@ -127,7 +127,7 @@ func (m *Mirror) Resolve(code string, now time.Time) (Record, error) {
 		return Record{}, errors.New("not found or revoked")
 	}
 	_, e := r.Verify(code, now)
-	return r, e
+	return clone(r), e
 }
 func (m *Mirror) ApplyRevocation(v Revocation) error {
 	m.mu.Lock()
@@ -146,4 +146,10 @@ func (m *Mirror) ApplyRevocation(v Revocation) error {
 	}
 	m.revoked[v.Code] = true
 	return nil
+}
+
+func clone(r Record) Record {
+	r.Key = append([]byte(nil), r.Key...)
+	r.Signature = append([]byte(nil), r.Signature...)
+	return r
 }
