@@ -79,6 +79,9 @@ func (c *Core) synchronize(s localdb.Settings) {
 	c.networkErr = ""
 }
 func (c *Core) stopNode() {
+	if c.groups != nil {
+		c.groups.Attach(nil, c.selection.Mode)
+	}
 	if c.node != nil {
 		_ = c.node.Close()
 		c.node = nil

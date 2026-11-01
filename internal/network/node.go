@@ -10,6 +10,7 @@ import (
 	"math/rand/v2"
 	stdnet "net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	libp2p "github.com/libp2p/go-libp2p"
@@ -56,23 +57,25 @@ type Config struct {
 	PublicDiscovery bool
 }
 type Node struct {
-	Host         host.Host
-	DHT          *dht.IpfsDHT
-	Messages     chan messaging.Message
-	Events       chan string
-	ctx          context.Context
-	cancel       context.CancelFunc
-	wg           sync.WaitGroup
-	mu           sync.Mutex
-	known        map[peer.ID]peer.AddrInfo
-	guard        security.Guard
-	relays       *relaySource
-	relayServer  bool
-	reachability string
-	onMessage    func(messaging.Message) error
-	relayMetrics *relayMetrics
-	localOnly    bool
-	scopedMode   string
+	Host              host.Host
+	DHT               *dht.IpfsDHT
+	Messages          chan messaging.Message
+	Events            chan string
+	ctx               context.Context
+	cancel            context.CancelFunc
+	wg                sync.WaitGroup
+	mu                sync.Mutex
+	known             map[peer.ID]peer.AddrInfo
+	guard             security.Guard
+	relays            *relaySource
+	relayServer       bool
+	reachability      string
+	onMessage         func(messaging.Message) error
+	relayMetrics      *relayMetrics
+	localOnly         bool
+	scopedMode        string
+	traffic           *trafficCounter
+	lastConnectMicros atomic.Int64
 }
 
 func ParseAddress(s string) (peer.AddrInfo, error) {
@@ -148,7 +151,8 @@ func New(parent context.Context, c Config) (*Node, error) {
 		cm.Close()
 		return nil, err
 	}
-	opts := []libp2p.Option{libp2p.Identity(key), libp2p.ListenAddrStrings(c.Listen...), libp2p.Security(noise.ID, noise.New), libp2p.ConnectionManager(cm), libp2p.ResourceManager(rm)}
+	traffic := &trafficCounter{}
+	opts := []libp2p.Option{libp2p.BandwidthReporter(traffic), libp2p.Identity(key), libp2p.ListenAddrStrings(c.Listen...), libp2p.Security(noise.ID, noise.New), libp2p.ConnectionManager(cm), libp2p.ResourceManager(rm)}
 	if !c.LocalOnly {
 		opts = append(opts, libp2p.AddrsFactory(func(as []ma.Multiaddr) []ma.Multiaddr { return withoutVPNAddresses(append(as, announced...)) }))
 	}
@@ -230,6 +234,7 @@ func New(parent context.Context, c Config) (*Node, error) {
 	}
 	n := &Node{Host: h, DHT: kd, Messages: make(chan messaging.Message, 64), Events: make(chan string, 32), ctx: ctx, cancel: cancel, known: map[peer.ID]peer.AddrInfo{}, relays: source, relayServer: c.RelayServer, reachability: "desconhecida", onMessage: c.OnMessage}
 	n.relayMetrics = metrics
+	n.traffic = traffic
 	n.localOnly = c.LocalOnly
 	n.scopedMode = c.ScopedMode
 	if c.ForcePrivate {
@@ -336,7 +341,13 @@ func (n *Node) Connect(ctx context.Context, p peer.AddrInfo) error {
 	if n.localOnly && n.Host.Network().Connectedness(p.ID) != net.Connected {
 		n.Host.Peerstore().ClearAddrs(p.ID)
 	}
-	return n.Host.Connect(ctx, p)
+	existed := len(n.Host.Network().ConnsToPeer(p.ID)) > 0
+	started := time.Now()
+	e := n.Host.Connect(ctx, p)
+	if e == nil && !existed {
+		n.lastConnectMicros.Store(time.Since(started).Microseconds())
+	}
+	return e
 }
 
 // Remember schedules bounded reconnection without blocking the caller.

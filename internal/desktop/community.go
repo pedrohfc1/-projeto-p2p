@@ -1,0 +1,36 @@
+package desktop
+
+import (
+	"context"
+	"projetop2p/internal/communities"
+	"projetop2p/internal/community"
+	"time"
+)
+
+func (c *Core) CreateCommunity(name, description, icon string) (string, error) {
+	return c.groups.Create(name, description, icon)
+}
+func (c *Core) CommunityState(id, channel string, before uint64) (communities.View, error) {
+	return c.groups.View(id, channel, before)
+}
+func (c *Core) CommunityAction(id, kind string, body community.Body) (communities.Receipt, error) {
+	ctx, cancel := context.WithTimeout(c.ctx, 10*time.Second)
+	defer cancel()
+	return c.groups.Action(ctx, id, kind, body)
+}
+func (c *Core) CommunityInvite(id string) (string, error) {
+	ctx, cancel := context.WithTimeout(c.ctx, 10*time.Second)
+	defer cancel()
+	return c.groups.Invite(ctx, id)
+}
+func (c *Core) JoinCommunity(raw string) (communities.Receipt, error) {
+	ctx, cancel := context.WithTimeout(c.ctx, 10*time.Second)
+	defer cancel()
+	return c.groups.Join(ctx, raw)
+}
+func (c *Core) SyncCommunity(id string) error {
+	ctx, cancel := context.WithTimeout(c.ctx, 10*time.Second)
+	defer cancel()
+	return c.groups.Sync(ctx, id)
+}
+func (c *Core) DiscardCommunityPending(id, op string) error { return c.groups.Discard(id, op) }

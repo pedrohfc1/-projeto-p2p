@@ -10,6 +10,8 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"projetop2p/internal/communities"
+	"projetop2p/internal/community"
 	"projetop2p/internal/desktop"
 	"projetop2p/internal/localdb"
 )
@@ -77,6 +79,49 @@ func (a *App) Copy(s string) error {
 	}
 	return wruntime.ClipboardSetText(a.ctx, s)
 }
+func (a *App) CreateCommunity(name, description, icon string) (string, error) {
+	if e := a.initialized(); e != nil {
+		return "", e
+	}
+	return a.core.CreateCommunity(name, description, icon)
+}
+func (a *App) CommunityState(id, channel string, before uint64) (communities.View, error) {
+	if e := a.initialized(); e != nil {
+		return communities.View{}, e
+	}
+	return a.core.CommunityState(id, channel, before)
+}
+func (a *App) CommunityAction(id, kind string, body community.Body) (communities.Receipt, error) {
+	if e := a.initialized(); e != nil {
+		return communities.Receipt{}, e
+	}
+	return a.core.CommunityAction(id, kind, body)
+}
+func (a *App) CommunityInvite(id string) (string, error) {
+	if e := a.initialized(); e != nil {
+		return "", e
+	}
+	return a.core.CommunityInvite(id)
+}
+func (a *App) JoinCommunity(raw string) (communities.Receipt, error) {
+	if e := a.initialized(); e != nil {
+		return communities.Receipt{}, e
+	}
+	return a.core.JoinCommunity(raw)
+}
+func (a *App) SyncCommunity(id string) error {
+	if e := a.initialized(); e != nil {
+		return e
+	}
+	return a.core.SyncCommunity(id)
+}
+func (a *App) DiscardCommunityPending(id, op string) error {
+	if e := a.initialized(); e != nil {
+		return e
+	}
+	return a.core.DiscardCommunityPending(id, op)
+}
+
 func main() {
 	dir := flag.String("data", "", "Perfil separado para testes; padrão no diretório do usuário")
 	version := flag.Bool("version", false, "Informar versão sem iniciar a janela ou o nó")

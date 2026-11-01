@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"projetop2p/internal/community"
 	"projetop2p/internal/desktop"
 	"projetop2p/internal/localdb"
 )
@@ -46,10 +47,17 @@ func main() {
 			return
 		}
 		var req struct {
-			Method   string
-			ID       string
-			Text     string
-			Settings localdb.Settings
+			Method      string
+			ID          string
+			Text        string
+			Settings    localdb.Settings
+			Channel     string
+			Before      uint64
+			Kind        string
+			Body        community.Body
+			Name        string
+			Description string
+			Icon        string
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 32768)
 		if e := json.NewDecoder(r.Body).Decode(&req); e != nil {
@@ -59,6 +67,20 @@ func main() {
 		var result any
 		var err error
 		switch req.Method {
+		case "CreateCommunity":
+			result, err = core.CreateCommunity(req.Name, req.Description, req.Icon)
+		case "CommunityState":
+			result, err = core.CommunityState(req.ID, req.Channel, req.Before)
+		case "CommunityAction":
+			result, err = core.CommunityAction(req.ID, req.Kind, req.Body)
+		case "CommunityInvite":
+			result, err = core.CommunityInvite(req.ID)
+		case "JoinCommunity":
+			result, err = core.JoinCommunity(req.Text)
+		case "SyncCommunity":
+			err = core.SyncCommunity(req.ID)
+		case "DiscardCommunityPending":
+			err = core.DiscardCommunityPending(req.ID, req.Text)
 		case "State":
 			result, err = core.State(req.ID)
 		case "Send":
@@ -101,7 +123,7 @@ func main() {
 			http.Error(w, e.Error(), 500)
 			return
 		}
-		script := `<script>const rpc=async(method,args={})=>{const r=await fetch('/rpc',{method:'POST',headers:{'Content-Type':'application/json','X-QA-Token':'` + token + `'},body:JSON.stringify({Method:method,...args})});const v=await r.json();if(!r.ok)throw Error(v.error);return v};window.go={main:{App:{State:id=>rpc('State',{ID:id}),Send:(id,text)=>rpc('Send',{ID:id,Text:text}),AddContact:text=>rpc('AddContact',{Text:text}),ConnectInvite:text=>rpc('ConnectInvite',{Text:text}),TestConnectivity:id=>rpc('TestConnectivity',{ID:id}),SaveSettings:settings=>rpc('SaveSettings',{Settings:settings}),Invite:()=>rpc('Invite'),Copy:text=>navigator.clipboard.writeText(text)}}};</script>`
+		script := `<script>const rpc=async(method,args={})=>{const r=await fetch('/rpc',{method:'POST',headers:{'Content-Type':'application/json','X-QA-Token':'` + token + `'},body:JSON.stringify({Method:method,...args})});const v=await r.json();if(!r.ok)throw Error(v.error);return v};window.go={main:{App:{CreateCommunity:(name,description,icon)=>rpc('CreateCommunity',{Name:name,Description:description,Icon:icon}),CommunityState:(id,channel,before)=>rpc('CommunityState',{ID:id,Channel:channel,Before:before}),CommunityAction:(id,kind,body)=>rpc('CommunityAction',{ID:id,Kind:kind,Body:body}),CommunityInvite:id=>rpc('CommunityInvite',{ID:id}),JoinCommunity:text=>rpc('JoinCommunity',{Text:text}),SyncCommunity:id=>rpc('SyncCommunity',{ID:id}),DiscardCommunityPending:(id,op)=>rpc('DiscardCommunityPending',{ID:id,Text:op}),State:id=>rpc('State',{ID:id}),Send:(id,text)=>rpc('Send',{ID:id,Text:text}),AddContact:text=>rpc('AddContact',{Text:text}),ConnectInvite:text=>rpc('ConnectInvite',{Text:text}),TestConnectivity:id=>rpc('TestConnectivity',{ID:id}),SaveSettings:settings=>rpc('SaveSettings',{Settings:settings}),Invite:()=>rpc('Invite'),Copy:text=>navigator.clipboard.writeText(text)}}};</script>`
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write([]byte(strings.Replace(string(b), "<head>", "<head>"+script, 1)))
 	})

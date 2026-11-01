@@ -15,12 +15,14 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	"projetop2p/internal/adapters"
+	"projetop2p/internal/communities"
 	"projetop2p/internal/endpoint"
 	"projetop2p/internal/identity"
 	"projetop2p/internal/invite"
 	"projetop2p/internal/localdb"
 	"projetop2p/internal/messaging"
 	"projetop2p/internal/network"
+	"projetop2p/internal/telemetry"
 )
 
 type Core struct {
@@ -32,6 +34,7 @@ type Core struct {
 	dir        string
 	lastEvent  string
 	lastTest   *ConnectionTest
+	groups     *communities.Service
 	enumerate  adapters.Provider
 	selection  adapters.Selection
 	networkErr string
@@ -39,21 +42,24 @@ type Core struct {
 	key        crypto.PrivKey
 	wg         sync.WaitGroup
 	closed     bool
+	metrics    telemetry.Sampler
 }
 type ContactView struct {
 	localdb.Contact
 	Path string `json:"path"`
 }
 type State struct {
-	Settings     localdb.Settings   `json:"settings"`
-	Network      network.Status     `json:"network"`
-	Contacts     []ContactView      `json:"contacts"`
-	Messages     []localdb.Message  `json:"messages"`
-	Notice       string             `json:"notice"`
-	Event        string             `json:"event"`
-	Connectivity adapters.Selection `json:"connectivity"`
-	NetworkError string             `json:"networkError"`
-	Diagnostic   *ConnectionTest    `json:"diagnostic"`
+	Settings     localdb.Settings      `json:"settings"`
+	Network      network.Status        `json:"network"`
+	Contacts     []ContactView         `json:"contacts"`
+	Messages     []localdb.Message     `json:"messages"`
+	Notice       string                `json:"notice"`
+	Event        string                `json:"event"`
+	Connectivity adapters.Selection    `json:"connectivity"`
+	NetworkError string                `json:"networkError"`
+	Diagnostic   *ConnectionTest       `json:"diagnostic"`
+	Communities  []communities.Summary `json:"communities"`
+	Metrics      telemetry.Sample      `json:"metrics"`
 }
 
 func DefaultDir() (string, error) {
@@ -86,6 +92,7 @@ func OpenWithProvider(parent context.Context, dir string, provider adapters.Prov
 		db.Close()
 		return nil, e
 	}
+	c.groups = communities.New(ctx, db, key)
 	c.synchronize(settings)
 	c.wg.Add(1)
 	go c.watch()
@@ -103,6 +110,8 @@ func (c *Core) start(s localdb.Settings) error {
 		return e
 	}
 	c.node = n
+	n.SetCommunityHandler(c.groups.Handle)
+	c.groups.Attach(n, mode(s))
 	contacts, e := c.db.Contacts()
 	if e != nil {
 		n.Close()
@@ -157,6 +166,9 @@ func (c *Core) receiveScoped(m messaging.Message, scope string) error {
 }
 func (c *Core) Close() error {
 	c.cancel()
+	if c.groups != nil {
+		c.groups.Close()
+	}
 	c.wg.Wait()
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -182,6 +194,10 @@ func (c *Core) State(selected string) (State, error) {
 		return s, e
 	}
 	s.Diagnostic = c.lastTest
+	s.Communities, e = c.groups.List()
+	if e != nil {
+		return s, e
+	}
 	s.Connectivity = c.selection
 	s.NetworkError = c.networkErr
 	id, _ := peer.IDFromPrivateKey(c.key)
@@ -199,6 +215,18 @@ func (c *Core) State(selected string) (State, error) {
 			}
 		}
 	drained:
+	}
+	traffic := network.Traffic{}
+	if c.node != nil {
+		traffic = c.node.Traffic()
+	}
+	s.Metrics = c.metrics.Read(traffic.UploadBytes, traffic.DownloadBytes)
+	s.Metrics.Connections = traffic.Connections
+	s.Metrics.Streams = traffic.Streams
+	s.Metrics.LastConnectMs = traffic.LastConnectMs
+	if c.lastTest != nil && c.lastTest.Connected {
+		rtt := c.lastTest.RTTMillis
+		s.Metrics.PingMs = &rtt
 	}
 	s.Event = c.lastEvent
 	contacts, e := c.db.Contacts()

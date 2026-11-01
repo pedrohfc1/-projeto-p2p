@@ -46,14 +46,7 @@ func Open(dir string) (*DB, error) {
 		return nil, errors.New("não foi possível abrir o banco; feche outra instância com o mesmo perfil: " + e.Error())
 	}
 	s := &DB{d}
-	e = d.Update(func(tx *bolt.Tx) error {
-		for _, n := range []string{"settings", "contacts", "messages", "messageids"} {
-			if _, e := tx.CreateBucketIfNotExists([]byte(n)); e != nil {
-				return e
-			}
-		}
-		return nil
-	})
+	e = s.MigrateTo(CurrentSchema)
 	if e != nil {
 		d.Close()
 		return nil, e
