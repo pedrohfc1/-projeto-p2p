@@ -23,3 +23,19 @@ func TestPersistent(t *testing.T) {
 		t.Fatal("corrupt identity accepted")
 	}
 }
+
+func TestOversizedIdentityIsPreservedAndRejected(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "identity.key")
+	content := make([]byte, 65537)
+	if e := os.WriteFile(path, content, 0600); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := Load(dir); e == nil {
+		t.Fatal("oversized identity accepted")
+	}
+	info, e := os.Stat(path)
+	if e != nil || info.Size() != int64(len(content)) {
+		t.Fatal("identity overwritten", e)
+	}
+}

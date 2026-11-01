@@ -2,7 +2,9 @@ package identity
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -18,7 +20,10 @@ func Load(dir string) (crypto.PrivKey, error) {
 		return nil, err
 	}
 	path := filepath.Join(dir, "identity.key")
-	b, err := os.ReadFile(path)
+	if info, e := os.Lstat(path); e == nil && info.Mode()&os.ModeSymlink != 0 {
+		return nil, errors.New("identity file must not be a symbolic link")
+	}
+	b, err := readIdentity(path)
 	if err == nil {
 		if err = protect(path, false); err != nil {
 			return nil, err
@@ -27,7 +32,11 @@ func Load(dir string) (crypto.PrivKey, error) {
 		if err != nil {
 			return nil, fmt.Errorf("unlock identity: %w", err)
 		}
-		return crypto.UnmarshalPrivateKey(b)
+		key, e := crypto.UnmarshalPrivateKey(b)
+		if e == nil && key.Type() != crypto.Ed25519 {
+			return nil, errors.New("identity must use Ed25519; existing file was preserved")
+		}
+		return key, e
 	}
 	if !os.IsNotExist(err) {
 		return nil, err
@@ -63,4 +72,20 @@ func Load(dir string) (crypto.PrivKey, error) {
 		return nil, err
 	}
 	return key, nil
+}
+
+func readIdentity(path string) ([]byte, error) {
+	f, e := os.Open(path)
+	if e != nil {
+		return nil, e
+	}
+	defer f.Close()
+	b, e := io.ReadAll(io.LimitReader(f, 65537))
+	if e != nil {
+		return nil, e
+	}
+	if len(b) > 65536 {
+		return nil, errors.New("identity file exceeds 64 KiB; existing file was preserved")
+	}
+	return b, nil
 }

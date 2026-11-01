@@ -36,3 +36,33 @@ func TestTransactionsAndDeduplication(t *testing.T) {
 		t.Fatal(cs, e)
 	}
 }
+
+func TestMessageContentCannotBeRewrittenAfterRestart(t *testing.T) {
+	dir := t.TempDir()
+	d, e := Open(dir)
+	if e != nil {
+		t.Fatal(e)
+	}
+	original := Message{ID: "same-id", From: "peer", Peer: "peer", Text: "original", Time: 123, State: "recebida"}
+	if e = d.AddMessage(original); e != nil {
+		t.Fatal(e)
+	}
+	d.Close()
+	d, e = Open(dir)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer d.Close()
+	altered := original
+	altered.Text = "replacement"
+	if e = d.AddMessage(altered); e == nil {
+		t.Fatal("immutable text rewritten")
+	}
+	if e = d.AddMessage(original); e != nil {
+		t.Fatal("idempotent duplicate rejected", e)
+	}
+	rows, _ := d.Messages("peer")
+	if len(rows) != 1 || rows[0].Text != "original" {
+		t.Fatal(rows)
+	}
+}

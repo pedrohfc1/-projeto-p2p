@@ -113,6 +113,15 @@ func (d *DB) AddMessage(m Message) error {
 		ids := tx.Bucket([]byte("messageids"))
 		idkey := []byte(m.From + ":" + m.ID)
 		key := append([]byte(nil), ids.Get(idkey)...)
+		if len(key) > 0 {
+			var old Message
+			if err := json.Unmarshal(b.Get(key), &old); err != nil {
+				return err
+			}
+			if old.From != m.From || old.Peer != m.Peer || old.Text != m.Text || old.Time != m.Time {
+				return errors.New("message ID already exists with different immutable content")
+			}
+		}
 		if len(key) == 0 {
 			seq, e := b.NextSequence()
 			if e != nil {
