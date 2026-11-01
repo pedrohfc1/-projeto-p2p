@@ -8,3 +8,6 @@
 - Adaptador ativo não é peer conectado. Não afirme teste Radmin/Hamachi real a partir de fixtures. Preserve modo nativo, DHT, bootstrap e Circuit Relay.
 - Não publique, crie repositórios, envie commits ou tags sem confirmação e destino explícito. O disparo manual de Release deve apenas gerar artefatos. Permissão contents: write apenas no publicador; nenhuma credencial pessoal no código.
 - Não implemente voz ou blockchain nesta fase. Use somente mudanças relacionadas à tarefa.
+
+- Comunidades: nunca confiar em snapshot/papel remoto sem registro assinado; manter chave de autor ligada ao Peer ID, raiz/owner fixados e cadeia contígua. Não confirmar outbox só por ACK sem commit verificado. Preservar migrações e histórico legado.
+- Documentar dependência do dono online e ausência de E2EE de grupo; definições voice não autorizam captura de mídia. Testar testes/community_desktop_smoke.py sem exigir VPN na CI normal; --radmin é integração opcional real.

@@ -8,6 +8,17 @@ O projeto usa versionamento semântico. As versões abaixo descrevem desenvolvim
 - Auditoria de candidatos Git, gitleaks, análise de vulnerabilidades e documentação pública em português.
 - Licença MIT confirmada, testes do frontend e consistência de versão.
 
+## [0.5.0] — 2026-11-01
+
+- Comunidades com identidade única, metadados, membros, owner/moderator/member e convites assinados de uso único.
+- Canais de texto, definições de voz sem áudio, histórico paginado e registro autenticado com cursor, hash anterior e deduplicação.
+- Outbox durável, recuperação após reinício, revogação e controle de conflitos; dono é sequenciador online nesta etapa.
+- Interface com barra de comunidades, canais, chat, participantes e configurações; DM e configurações VPN preservados.
+- Migração bbolt versionada 1→2 com testes de preservação e downgrade seguro condicionado a buckets vazios.
+- Correção de replay de ID no histórico individual, limites de leitura da chave e contatos não solicitados, CSP e file drop desativado.
+- Telemetria inicial, testes de integração Radmin locais, preparação opcional de assinatura Windows e documentação E2EE/voz.
+- Build Windows de testes sem assinatura; sem publicação. GO-2024-3218 mantém gate bloqueado. Comunidades ainda sem E2EE de grupo.
+
 ## [0.4.1] — 2026-10-31
 
 - Escolha explícita da VPN ao gerar/receber convites; aviso de VPN detectada mas não selecionada no modo nativo.

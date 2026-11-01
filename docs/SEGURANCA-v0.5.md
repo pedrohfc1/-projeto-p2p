@@ -1,14 +1,42 @@
-# Auditoria de segurança — versão 0.5 (em desenvolvimento)
+# Auditoria de segurança 0.5
 
-Base analisada: 0.4.1. Banco atual é bbolt, não SQLite. Escopo inicial: identidade, mensagens individuais, convites, streams, Wails, persistência e distribuição. Este documento será completado com a validação da entrega.
+Revisão de código e testes locais em 2026-10-31/2026-11-01. Não é auditoria externa nem certificação. Escopo: identidade, convites, protocolos, persistência, permissões, frontend e distribuição. [Validação e limitações](VALIDACAO-v0.5.md).
 
-## Achados iniciais e correções
+## Correções implementadas
 
-- **Integridade do histórico (média):** AddMessage reutilizava a chave (remetente, ID), mas substituía conteúdo se um remetente assinasse outro texto com o mesmo ID após o cache de replay expirar/reiniciar. Agora texto, remetente, conversa e timestamp são imutáveis por ID; atualizações de estado de envio permanecem possíveis. Duplicatas idênticas continuam idempotentes. Teste cobre reinício e tentativa de substituição.
-- **Leitura local sem limite da chave (baixa, acesso ao perfil necessário):** leitura passa a ter teto de 64 KiB e rejeita link simbólico no arquivo final. Chaves inválidas/grandes nunca são substituídas. A identidade persistente deve continuar Ed25519. Não é uma proteção contra processos do mesmo usuário/administradores, nem valida todos os componentes ancestrais de um caminho.
-- **Proteção existente:** Ed25519 persistente; Windows DPAPI, Linux 0700/0600; Noise; Peer ID vinculado à assinatura; frames/texto/deadlines/replay/frequência limitados. Replay em memória de mensagens individuais não é uma garantia de entrega exatamente uma vez. A deduplicação persistente cobre o histórico retido.
-- **Fronteira da interface:** dados de peers são renderizados como texto React; sem HTML arbitrário nem carregamento de ícones remotos. Métodos Wails assinantes usam a chave local, nunca papel/autor declarado como prova de autoridade. Não há servidor HTTP de administração no desktop; tests/webui é uma ponte QA local autenticada.
-- **Dependência conhecida:** GO-2024-3218 na DHT sem correção conhecida; bloqueio de publicação preservado. Modo VPN não inicia DHT, mas o modo nativo mantém o risco documentado.
-- **Distribuição:** aplicativo/setup sem certificado Authenticode próprio. SmartScreen/reputação e detecção real do Defender são situações distintas. Sem evidência de ameaça específica não classificamos o aviso como falso positivo. Nenhuma proteção será desativada.
+| Achado | Correção e evidência |
+|---|---|
+| Um autor autenticado podia reapresentar ID de DM com conteúdo diferente após reiniciar o cache | O banco exige igualdade dos campos imutáveis antes de atualizar estado; teste de replay após reinício |
+| Leitura de chave sem limite específico e aceitação implícita de tipo | Limite de 64 KiB, Ed25519 obrigatório, recusa de symlink final e preservação do arquivo inválido; testes |
+| Remetentes desconhecidos podiam ocupar contatos locais | Novos contatos não solicitados identificados, máximo 16; contatos explicitamente adicionados continuam permitidos; teste de capacidade |
+| Nova superfície de comunidades | Operações tipadas e assinadas, autor vinculado ao Peer ID Noise, papéis validados no backend, tickets limitados e revogáveis, leitura só por membros atuais, frames e filas limitados |
+| Conteúdo remoto no frontend | React renderiza texto escapado, teste de injeção SSR, CSP, nenhum HTML remoto, upload ou acesso a mídia; file drop nativo desativado |
+| Cache WebView2 compartilhado entre perfis | Cache dentro do perfil explicitamente resolvido; não muda chave/banco antigos. Inspeção visual nativa ainda pendente |
 
-Histórico e futuras réplicas de comunidades não têm criptografia de conteúdo em repouso ou E2EE de grupo nesta fase. Noise protege cada conexão de transporte; participantes autorizados e o nó do proprietário veem o conteúdo.
+Ed25519 persiste no perfil. Windows usa DPAPI; Linux restringe permissões. Isso não protege contra malware no mesmo usuário, comprometimento do SO ou extração da sessão em execução. As permissões Windows também dependem das ACLs herdadas. O banco bbolt e seu conteúdo **não são criptografados em repouso**. Não foi adicionado SQLite.
+
+Noise protege os enlaces libp2p e autentica chaves dos peers; nomes não são identidade civil. Convites devem ser conferidos por canal confiável. Radmin/Hamachi não são configurados pelo aplicativo e a existência do adaptador não comprova alcance. A seleção explícita e os filtros de endereços da 0.4.1 permanecem, assim como bootstrap, DHT e Circuit Relay no modo nativo.
+
+## Protocolo de comunidade
+
+Domínios de assinatura separados para operações, commits e convites. ID derivado do conteúdo, nonce aleatório, chave pública vinculada ao autor, proprietário e raiz fixados, sequência/hash anterior verificados. A assinatura é do conteúdo canônico produzido pelo código; JSON externo desconhecido e campos incompatíveis com a operação são recusados. Não se aceita snapshot remoto como prova de permissão.
+
+O dono serializa commits e revalida papel/canal/época no recebimento. Membro não promove a si próprio; moderador não remove/promove dono ou outro moderador. Tickets dão papel membro, são assinados pelo dono, de uso único e expiram; mudanças de papéis/remoções invalidam a época anterior. Reentrada exige ticket atual. Usuário removido perde sincronização futura, mas mantém cópias anteriores.
+
+Frames: requisição 32 KiB, resposta 256 KiB, leitura delimitada e prazo de 10 s. Portão limita 16 streams simultâneos, 2 por peer e 256 rastreadores, com expiração; rajada 64 e reposição 12/s por peer. Histórico, membros, canais, registro e filas têm quotas. Escritas são transacionais e só removem pendência após receber commit verificável. Essas medidas não eliminam DDoS, ataques Sybil ou esgotamento de disco por outros aplicativos. Não se presume que o dono seja honesto; assinatura de dono detecta adulteração, mas não resolve equivocações entre réplicas isoladas.
+
+## Privacidade que ainda não existe
+
+**Comunidades 0.5 não têm E2EE de grupo.** O dono e membros autorizados processam texto claro. Cada conexão tem Noise, mas o dono vê o conteúdo que sequencia. Não há segredo futuro/pós-comprometimento de grupo, rotação MLS nem arquivos distribuídos criptografados. [Plano E2EE](CRIPTOGRAFIA-E2EE-PLANO.md). Salas de voz não capturam microfone; nenhuma chamada, vídeo, tela ou blockchain foi implementada.
+
+## Dependências e bloqueios
+
+`go mod verify` e `npm audit` foram executados; npm não apontou vulnerabilidades. `govulncheck` retornou falha com **GO-2024-3218 alcançável em go-libp2p-kad-dht**, sem versão corrigida informada no aviso consultado. O gate existente continua bloqueando publicação; não foi suprimido. No modo VPN o DHT permanece desligado, o que reduz essa exposição nesse caminho, sem sanar o modo nativo. O relatório também distingue avisos de módulos sem chamada identificada; ausência de chamada reportada não equivale a ausência de risco. [Aviso oficial](https://pkg.go.dev/vuln/GO-2024-3218).
+
+Auditoria de candidatos Git e gitleaks verificam fontes antes de commit/pacote. Não incluímos perfil, chaves, bancos, logs privados, node_modules ou credenciais no ZIP fonte. Wails conserva a validação padrão de origem; CSP não usa script remoto ou wildcard de origem. O nonce do helper de testes não é incorporado ao app de produção. As APIs de comunidade usam a chave do processo, sem aceitar identidade/papel escolhidos pelo chamador.
+
+## Windows e publicação
+
+Aplicativo e instalador locais estão **NotSigned**. Não há credencial de assinatura fornecida. A consulta ao Defender ficou indisponível neste ambiente: não comprova arquivo limpo e não permite classificar o aviso relatado como falso positivo. SmartScreen, ausência de assinatura e detecção real são diagnósticos diferentes. [Procedimento e preparação Authenticode](ASSINATURA-WINDOWS.md).
+
+Não alteramos firewall, Defender, SmartScreen, VPNs ou exceções. Não houve publicação GitHub, tag ou release. Caso haja detecção real, interromper distribuição e investigar arquivo/hash/ameaça antes de nova tentativa. Hash consistente comprova integridade em relação à cópia de referência, não inocuidade.

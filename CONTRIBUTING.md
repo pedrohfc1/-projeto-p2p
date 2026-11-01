@@ -28,3 +28,7 @@ Antes do primeiro commit, instale `go install github.com/zricethezav/gitleaks/v8
 Testes de instalação/atualização devem usar um usuário/VM de teste. Registre Peer ID, contato e mensagem antes/depois, sem publicar a chave. Não teste sobre dados de terceiros. Não altere redes ou firewall automaticamente.
 
 Versões e publicação: docs/PUBLICACAO.md. Mudanças em dependências exigem lockfiles atualizados, verificação de vulnerabilidades e revisão das licenças. Não adicione voz ou blockchain sem novo escopo aprovado.
+
+## Comunidades 0.5
+
+Depois do frontend e go test/vet, compile o helper com `go build -buildvcs=false -o work-webui.exe ./tests/webui` e execute `python tests/community_desktop_smoke.py ./work-webui.exe --metrics metrics-local.json`. No Linux use nome sem .exe. `--radmin` é opcional Windows com adaptador real; não é requisito da CI. Nunca use perfil pessoal. Veja docs/COMUNIDADES-v0.5.md para aceitação em dois PCs. Não incorporar o helper ao instalador.

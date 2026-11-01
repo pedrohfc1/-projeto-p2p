@@ -1,6 +1,6 @@
 # Segurança
 
-O Projeto P2P 0.4.0 é experimental e não passou por auditoria independente. As verificações automatizadas ajudam a encontrar problemas, mas não são garantia de segurança. Não há compromisso de suporte a versões anteriores; ao publicar correções, use a versão mais recente e consulte o changelog.
+O Projeto P2P 0.5.0 é experimental e não passou por auditoria independente. As verificações automatizadas ajudam a encontrar problemas, mas não são garantia de segurança. Não há compromisso de suporte a versões anteriores; ao publicar correções, use a versão mais recente e consulte o changelog. Veja a [auditoria 0.5](docs/SEGURANCA-v0.5.md): comunidades ainda não têm E2EE de grupo e o dono confirma as operações enquanto está online.
 
 ## Relatar uma vulnerabilidade
 

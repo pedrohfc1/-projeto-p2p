@@ -27,3 +27,11 @@ A enumeração Windows combina GUID, índice, estado, IPv4 e evidências de driv
 Perfil Windows em %APPDATA%/ProjetoP2P; Linux em XDG_CONFIG_HOME/ProjetoP2P ou ~/.config/ProjetoP2P. Instalação separada do perfil e novos campos compatíveis preservam identidade, contatos e histórico. O histórico não é criptografado em repouso. Não use o mesmo perfil em duas instâncias; use portas distintas no mesmo PC.
 
 Comunidades, arquivos distribuídos criptografados, voz cooperativa e registros verificáveis são arquitetura futura; não estão implementados. Não há blockchain nesta versão. Consulte decisões/0003 e 0004 e os documentos em security para detalhes históricos, sempre observando sua versão.
+
+## Extensão 0.5: comunidades
+
+`community` define operações, commits, tickets e reducer verificável; `localdb` persiste esquema 2, registro e outbox transacional; `communities.Service` faz autorização, sequenciamento do dono e sincronização; `network` transporta frames limitados em `/projeto-p2p/community/0.5.0`; `desktop.Core` expõe APIs Wails; React apresenta estado verificado. Mutex de ambiente é separado do Core e sincronização é limitada, evitando callbacks com lock circular.
+
+Autor → operação assinada → dono autentica Peer ID/RBAC → commit assinado/ordenado → réplicas verificam cadeia e persistem → UI confirma. Cada membro conserva sua cópia, sem servidor global. O dono é autoridade de ordenação por comunidade nesta fase, não consenso; indisponibilidade do dono deixa novas operações na fila. Divergência de prefixo é erro, nunca substituição silenciosa. Comparação entre réplicas e recuperação distribuída/eleição permanecem futuras.
+
+Voz é apenas channel.kind=voice. Não há acesso a microfone, câmera ou tela. Conteúdo ainda é texto claro em nós autorizados; plano MLS e mídia são documentos separados. Telemetria global do libp2p e do processo Go não representa consumo da árvore WebView2.
