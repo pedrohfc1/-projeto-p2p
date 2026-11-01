@@ -11,3 +11,5 @@
 
 - Comunidades: nunca confiar em snapshot/papel remoto sem registro assinado; manter chave de autor ligada ao Peer ID, raiz/owner fixados e cadeia contígua. Não confirmar outbox só por ACK sem commit verificado. Preservar migrações e histórico legado.
 - Documentar dependência do dono online e ausência de E2EE de grupo; definições voice não autorizam captura de mídia. Testar testes/community_desktop_smoke.py sem exigir VPN na CI normal; --radmin é integração opcional real.
+
+- EasyTier 0.5.2 é laboratório isolado, não transporte de chat/comunidades. Não ativar TUN, rotas/DNS/firewall, serviços ou defaults públicos. Auxiliares somente com hashes revisados; nunca node config em diagnóstico. Não redistribuir componente até fechar fontes/notices LGPL. Integração real é opcional via EASYTIER_LAB_BIN; não apresentar loopback como CGNAT/duas casas.

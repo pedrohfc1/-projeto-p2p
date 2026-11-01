@@ -65,3 +65,7 @@ Licença [MIT](LICENSE), confirmada pelo mantenedor. Dependências têm [licenç
 ## Convites compactos 0.5.1
 
 Novos convites Protobuf/Base64URL são cerca de 62–65% menores nos exemplos medidos. Ed25519, identidade, escopo e prazo permanecem. Aceita convites antigos; o modal permite gerar envelope antigo para 0.5.0 e QR local. Códigos curtos são somente estrutura local, sem resolução global. [Formatos, comparação e compatibilidade](docs/CONVITES-v0.5.1.md).
+
+## Branch experimental 0.5.2
+
+Este checkout contém também o laboratório EasyTier sem TUN, separado do chat/comunidades. Para uso normal de convites compactos, use a entrega 0.5.1. O laboratório exige preparação explícita dos auxiliares verificados e nós conhecidos autorizados; não há relay público embutido nem validação entre casas/CGNAT. [Execução, segurança, desempenho, LGPL e plano de integração](docs/EASYTIER-v0.5.2.md).

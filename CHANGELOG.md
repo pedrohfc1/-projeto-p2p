@@ -8,6 +8,15 @@ O projeto usa versionamento semântico. As versões abaixo descrevem desenvolvim
 - Auditoria de candidatos Git, gitleaks, análise de vulnerabilidades e documentação pública em português.
 - Licença MIT confirmada, testes do frontend e consistência de versão.
 
+## [0.5.2] — 2026-11-01 — experimental, não lançado
+
+- Laboratório EasyTier 2.6.4 no-TUN/SOCKS5, com stream libp2p Noise isolado e identidade do perfil preservada.
+- UI experimental, diagnóstico de peers/custos, métricas Go/auxiliar e credenciais somente na sessão.
+- Processos com hashes fixos, Job Object Windows, limites, reinício limitado e encerramento após crash do hospedeiro.
+- Integração local real: echo autenticado, canário de porta alheia bloqueado, Peer ID incorreto recusado e relay(2) com três auxiliares.
+- Auxiliares/driver não redistribuídos no pacote; preparador explícito verificado para desenvolvimento. LGPL/notices/fontes correspondentes ainda precisam de fechamento para distribuição turnkey.
+- Chat/comunidades continuam na rede anterior; sem alegação de teste entre casas, CGNAT, Linux nativo ou produto integrado pronto.
+
 ## [0.5.1] — 2026-11-01
 
 - Envelope compacto Protobuf/Base64URL para contatos e comunidades, com assinatura e validação preservadas.
