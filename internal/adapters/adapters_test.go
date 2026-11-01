@@ -87,3 +87,22 @@ func TestDetectionAndSelection(t *testing.T) {
 		t.Fatal("missing manual interface accepted")
 	}
 }
+
+func TestRadminIgnoresAliasesAndUnusableAdapters(t *testing.T) {
+	h := Classify(Info{ID: "hamachi", DriverID: "hamachi", Up: true, IPv4: []string{"25.1.2.3"}})
+	bad := Classify(Info{ID: "radmin-apipa", DriverID: "radminvpn", Up: true, IPv4: []string{"169.254.4.5"}})
+	r := Classify(Info{ID: "radmin-guid", Index: 90, DriverID: "radminvpn", Up: true, IPv4: []string{"169.254.2.3", "192.168.1.2", "10.5.0.2", "26.10.20.30"}})
+	s, e := Select([]Info{h, bad, r}, "radmin", "")
+	if e != nil || s.Selected.ID != r.ID || s.IP != "26.10.20.30" {
+		t.Fatal(s, e)
+	}
+	r.Up = false
+	s, e = Select([]Info{h, bad, r}, "radmin", r.ID)
+	if e == nil || s.Ready || s.Selected.ID != r.ID {
+		t.Fatal("pinned Radmin fell back", s, e)
+	}
+	auto, e := Select([]Info{h, r}, "auto", "")
+	if e != nil || auto.Selected != nil || auto.IP != "" {
+		t.Fatal("detection silently changed native mode")
+	}
+}

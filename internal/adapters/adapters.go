@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sort"
 	"strings"
 )
 
@@ -78,7 +79,10 @@ func Select(items []Info, mode, id string) (Selection, error) {
 	}
 	if mode == "auto" {
 		s.Ready = true
-		s.Message = "Conectividade libp2p nativa"
+		s.Message = "Modo nativo ativo; nenhuma VPN selecionada. A detecção de adaptadores não ativa uma VPN"
+		if s.DetectedProviders["radmin"] && s.DetectedProviders["hamachi"] {
+			s.Message += ". Hamachi e Radmin estão instalados: escolha explicitamente a VPN usada pelo contato"
+		}
 		return s, nil
 	}
 	if !IsVPN(mode) && mode != "interface" {
@@ -95,6 +99,12 @@ func Select(items []Info, mode, id string) (Selection, error) {
 		return s, errors.New(s.Message)
 	}
 	if len(candidates) == 0 {
+		for _, i := range items {
+			if id != "" && i.ID == id && IsVPN(mode) && i.Provider != mode {
+				s.Message = fmt.Sprintf("A interface %s pertence a %s, não a %s. Selecione o adaptador correto", i.Name, Name(i.Provider), Name(mode))
+				return s, errors.New(s.Message)
+			}
+		}
 		s.Message = "Adaptador selecionado ausente"
 		if IsVPN(mode) {
 			s.Message = Name(mode) + " não detectado. Verifique essa VPN ou use seleção manual; a outra VPN não é necessária"
@@ -104,7 +114,7 @@ func Select(items []Info, mode, id string) (Selection, error) {
 	if id == "" && len(candidates) > 1 {
 		active := []Info{}
 		for _, i := range candidates {
-			if i.Up && len(i.IPv4) > 0 {
+			if i.Up && selectedIPv4(i, mode) != "" {
 				active = append(active, i)
 			}
 		}
@@ -121,16 +131,7 @@ func Select(items []Info, mode, id string) (Selection, error) {
 		s.Message = "Adaptador desconectado/inativo. Conecte " + Name(mode) + " ou a interface selecionada"
 		return s, errors.New(s.Message)
 	}
-	for _, value := range i.IPv4 {
-		ip := net.ParseIP(value)
-		if ip != nil && ip.To4() != nil && !ip.IsUnspecified() && !ip.IsMulticast() && !ip.IsLinkLocalUnicast() {
-			if v, known := VPN(mode); known && !strings.HasPrefix(value, v.IPv4Prefix) {
-				continue
-			}
-			s.IP = value
-			break
-		}
-	}
+	s.IP = selectedIPv4(i, mode)
 	if s.IP == "" {
 		s.Message = "Adaptador sem IPv4 virtual válido"
 		return s, errors.New(s.Message)
@@ -160,4 +161,21 @@ func basic() ([]Info, error) {
 		out = append(out, v)
 	}
 	return out, nil
+}
+
+// Stable selection ignores APIPA/LAN aliases before choosing the provider's virtual IP.
+func selectedIPv4(i Info, mode string) string {
+	values := append([]string(nil), i.IPv4...)
+	sort.Strings(values)
+	for _, value := range values {
+		ip := net.ParseIP(value)
+		if ip == nil || ip.To4() == nil || ip.IsUnspecified() || ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.Equal(net.IPv4bcast) {
+			continue
+		}
+		if v, known := VPN(mode); known && !strings.HasPrefix(value, v.IPv4Prefix) {
+			continue
+		}
+		return ip.String()
+	}
+	return ""
 }

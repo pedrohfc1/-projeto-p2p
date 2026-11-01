@@ -65,3 +65,13 @@ func TestSignedInvite(t *testing.T) {
 		t.Fatal("expired accepted")
 	}
 }
+
+func TestRadminInviteRejectsOtherInterfacesAndDynamicListener(t *testing.T) {
+	k, _, _ := crypto.GenerateEd25519Key(rand.Reader)
+	id, _ := peer.IDFromPrivateKey(k)
+	for _, prefix := range []string{"/ip4/169.254.4.5/tcp/4001", "/ip4/192.168.1.2/tcp/4001", "/ip4/10.5.0.2/tcp/4001", "/ip4/25.1.2.3/tcp/4001", "/ip4/26.1.2.3/tcp/0"} {
+		if _, e := NewScoped(k, "Peer", []string{prefix + "/p2p/" + id.String()}, "radmin"); e == nil {
+			t.Fatal("Radmin invitation accepted wrong endpoint", prefix)
+		}
+	}
+}

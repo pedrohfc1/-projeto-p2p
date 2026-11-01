@@ -8,6 +8,14 @@ O projeto usa versionamento semântico. As versões abaixo descrevem desenvolvim
 - Auditoria de candidatos Git, gitleaks, análise de vulnerabilidades e documentação pública em português.
 - Licença MIT confirmada, testes do frontend e consistência de versão.
 
+## [0.4.1] — 2026-10-31
+
+- Escolha explícita da VPN ao gerar/receber convites; aviso de VPN detectada mas não selecionada no modo nativo.
+- Persistência do GUID e porta da interface selecionada, erro claro quando a configuração foi salva mas o nó não iniciou.
+- Filtros de endereço comuns entre convite, discagem e reconexão: rejeição de APIPA, separação Hamachi/Radmin e anúncio apenas da porta real de escuta.
+- Diagnóstico estruturado com modo, interface, endereço, porta, destino, handshake e ping.
+- Testes de regressão e smoke opcional com adaptador Radmin real, dois perfis locais, reinício e mensagem persistida.
+
 ## [0.4.0] — 2026-10-31
 
 - Arquitetura genérica de adaptadores virtuais Windows com Hamachi e Radmin VPN independentes.

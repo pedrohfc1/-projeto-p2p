@@ -2,7 +2,7 @@
 
 ## Preparação
 
-Use o instalador ProjetoP2P-Setup-v0.4.0.exe nos dois PCs, fechando a versão anterior. O perfil existente em %APPDATA%/ProjetoP2P é preservado. Não copie identity.key de um computador para outro: cada participante precisa de identidade própria.
+Use o instalador ProjetoP2P-Setup-v0.4.1.exe nos dois PCs, fechando a versão anterior. O perfil existente em %APPDATA%/ProjetoP2P é preservado. Não copie identity.key de um computador para outro: cada participante precisa de identidade própria.
 
 Instale somente a VPN que pretende usar. Para este roteiro, instale Radmin VPN pelo site oficial https://www.radmin-vpn.com/ e coloque os dois PCs na mesma rede Radmin usando o próprio Radmin. O aplicativo não instala, autentica, cria redes nem modifica configurações do Radmin. Não precisa instalar Hamachi. Não desative o firewall ou antivírus.
 
@@ -25,3 +25,19 @@ CLI opcional: `projetop2p-windows-amd64.exe --interfaces`. Para diagnóstico exp
 Registre em cada PC: versão do Windows/Radmin/app, modo, interface/índice, horário, resultado TCP, ping libp2p, mensagens nos dois sentidos e recuperação após desconexão. Não publique convites/IPs sem necessidade nem chaves privadas. Aprovar apenas após essas etapas em computadores distintos. Este teste ainda não foi executado pela equipe neste ambiente.
 
 Não há descoberta automática de todos os membros Radmin nem varredura de IPs. Convites e contatos conhecidos permitem conexão sem bootstrap/relay externos quando a VPN permite TCP entre participantes.
+
+## Correção 0.4.1 — atualizar os dois PCs e refazer convites
+
+A detecção das duas VPNs não seleciona nenhuma no modo Automático. Na 0.4.1, a tela de rede oferece Usar Radmin VPN, e gerar convite com VPN detectada exige uma escolha explícita. Não use Continuar com libp2p nativo para este roteiro. Ao receber convite Radmin em outro modo, a aplicação pede confirmação para ativar Radmin antes de conectar; não troca de rede silenciosamente.
+
+Feche o aplicativo antigo, instale ProjetoP2P-Setup-v0.4.1.exe nos dois PCs e escolha Radmin VPN. Confirme IP 26.x, adaptador Radmin (mesmo com Hamachi instalado), porta TCP de escuta 4001 e nó Em escuta. A interface é persistida pelo GUID, sem recriar a identidade. Se a porta estiver ocupada, escolha outra porta fixa livre; o convite conterá essa porta real.
+
+Gere novos convites após ativar Radmin. Convites antigos gerados no modo nativo podem conter apenas 192.168.x/10.x e não servem como convite Radmin; eles não podem ser corrigidos sem obter o endereço virtual atual do outro PC. O perfil, contatos e mensagens continuam preservados; adicionar novo convite do mesmo Peer ID atualiza o endereço do contato sem apagar seu histórico.
+
+Endereços APIPA 169.254.x.x são descartados. No modo Radmin, anúncios e destinos exigem TCP IPv4 26.x, com a porta real do listener; endereços 25.x do Hamachi, LAN, DNS/relays e portas zero são rejeitados nesse escopo. IP e índice são lidos do adaptador confirmado, sem inferir conectividade apenas pela presença do driver. A faixa 26.x é uma pista deste perfil, não prova de associação à rede VPN.
+
+Estado da rede mostra o último diagnóstico: modo, interface/GUID/índice, IP local, porta de escuta, destinos fornecidos à discagem, caminho efetivo quando autenticado e motivo/detalhe da falha. Timeout não identifica sozinho o firewall como causa. Uma porta de origem dinâmica numa conexão de saída é normal e não significa que a porta de escuta anunciada mudou.
+
+Teste local real executado: seleção Radmin, convite assinado com IP/Peer ID/porta reais, persistência após reinício, ping e mensagem entre dois perfis locais. Isso não substitui o roteiro entre dois PCs. Nenhuma regra de firewall, configuração da VPN ou roteador foi alterada.
+
+Diagnóstico opcional para desenvolvedores: compile `go build -buildvcs=false -o dist/webui.exe ./tests/webui` e execute `python tests/radmin_desktop_smoke.py dist/webui.exe --messages`. Exige adaptador Radmin ativo e usa perfis temporários, sem tocar no perfil pessoal. Não é requisito dos runners normais de CI.

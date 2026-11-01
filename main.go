@@ -82,7 +82,7 @@ func main() {
 	version := flag.Bool("version", false, "Informar versão sem iniciar a janela ou o nó")
 	flag.Parse()
 	if *version {
-		fmt.Println("0.4.0")
+		fmt.Println("0.4.1")
 		return
 	}
 	app := &App{ready: make(chan struct{})}

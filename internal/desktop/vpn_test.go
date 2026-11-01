@@ -73,7 +73,7 @@ func TestScopedContactsReconnectAndIPChange(t *testing.T) {
 		t.Fatal(parsed, e)
 	}
 	result, e := a.ConnectInvite(bi)
-	if e != nil || !result.Connected {
+	if e != nil || !result.Connected || !result.Authenticated || !result.ContactSaved || result.InterfaceID != "test-interface" || result.LocalPort != sa.Port || result.RemoteAddress == "" || len(result.Targets) == 0 {
 		t.Fatal(result, e)
 	}
 	if r, e := a.ConnectInvite(bs.Network.Addresses[0]); e != nil || !r.Connected {
@@ -147,8 +147,8 @@ func TestHamachiAbsentRemainsConfigurable(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer c.Close()
-	if e = c.SaveSettings(localdb.Settings{Name: "User", Mode: "hamachi"}); e != nil {
-		t.Fatal(e)
+	if e = c.SaveSettings(localdb.Settings{Name: "User", Mode: "hamachi"}); e == nil {
+		t.Fatal("missing VPN must report that the host did not start")
 	}
 	s, e := c.State("")
 	if e != nil || s.Network.ID == "" || s.Connectivity.Detected || s.NetworkError == "" || c.node != nil {
@@ -173,8 +173,8 @@ func TestRadminModePreservesProfileWithoutHamachi(t *testing.T) {
 	}
 	original, _ := c.State("")
 	settings := localdb.Settings{Name: "Radmin user", Mode: "radmin", Bootstrap: []string{}, Relays: []string{}}
-	if e = c.SaveSettings(settings); e != nil {
-		t.Fatal(e)
+	if e = c.SaveSettings(settings); e == nil {
+		t.Fatal("unassigned Radmin IPv4 must report bind failure")
 	}
 	state, e := c.State("")
 	if e != nil || !state.Connectivity.Detected || state.Connectivity.DetectedProviders["hamachi"] || state.Connectivity.IP != "26.10.20.30" || state.Network.ID != original.Network.ID {

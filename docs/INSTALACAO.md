@@ -1,8 +1,8 @@
-# Instalação e atualização 0.4.0
+# Instalação e atualização 0.4.1
 
 ## Windows 10/11 AMD64
 
-Baixe o instalador real `ProjetoP2P-Setup-v0.4.0.exe` na release oficial que o mantenedor publicar. Não precisa instalar Go, Node.js ou Python. Feche o aplicativo antigo e execute o setup com seu usuário habitual; ele usa asInvoker e não solicita elevação própria. Instala em `%LOCALAPPDATA%/Programs/ProjetoP2P`, cria atalho no menu Iniciar, oferece atalho na área de trabalho e registra desinstalação em Aplicativos Instalados (HKCU).
+Baixe o instalador real `ProjetoP2P-Setup-v0.4.1.exe` na release oficial que o mantenedor publicar. Não precisa instalar Go, Node.js ou Python. Feche o aplicativo antigo e execute o setup com seu usuário habitual; ele usa asInvoker e não solicita elevação própria. Instala em `%LOCALAPPDATA%/Programs/ProjetoP2P`, cria atalho no menu Iniciar, oferece atalho na área de trabalho e registra desinstalação em Aplicativos Instalados (HKCU).
 
 Microsoft Edge WebView2 é necessário. Se ausente, o instalador executa o bootstrapper Microsoft com assinatura validada durante o build; precisa de internet e está sujeito às políticas do sistema. O setup/app não têm certificado próprio de assinatura de distribuição. Não desative o SmartScreen, antivírus ou firewall para instalar.
 
@@ -14,15 +14,15 @@ A alternativa `windows-amd64-portatil.zip` contém o executável, não substitui
 
 ## Linux Mint 22 AMD64
 
-O workflow Linux gera `ProjetoP2P-v0.4.0-linux-amd64.tar.gz` com desktop nativo. Este ambiente Windows não gerou nem executou esse desktop. Requisitos de runtime no Mint 22/Ubuntu 24.04:
+O workflow Linux gera `ProjetoP2P-v0.4.1-linux-amd64.tar.gz` com desktop nativo. Este ambiente Windows não gerou nem executou esse desktop. Requisitos de runtime no Mint 22/Ubuntu 24.04:
 
 ```sh
 sudo apt-get update
 sudo apt-get install libgtk-3-0t64 libwebkit2gtk-4.1-0
 sha256sum --check SHA256SUMS.txt
 mkdir -p "$HOME/.local/opt"
-tar -xzf ProjetoP2P-v0.4.0-linux-amd64.tar.gz -C "$HOME/.local/opt"
-"$HOME/.local/opt/ProjetoP2P-v0.4.0/ProjetoP2P"
+tar -xzf ProjetoP2P-v0.4.1-linux-amd64.tar.gz -C "$HOME/.local/opt"
+"$HOME/.local/opt/ProjetoP2P-v0.4.1/ProjetoP2P"
 ```
 
 Use o pacote para sua distribuição; nomes de dependências podem variar fora do Mint 22. Não é necessário Go/Node para executar o binário já compilado. Perfil em `$XDG_CONFIG_HOME/ProjetoP2P` ou `~/.config/ProjetoP2P`. Para atualizar, feche o app e extraia a nova versão; para remover, apague somente o diretório de programa escolhido, preservando o perfil. Radmin VPN é integração específica do Windows; modo nativo/interface manual continuam disponíveis no Linux.
@@ -31,7 +31,7 @@ O pacote separado com sufixo `-cli.tar.gz` contém somente o núcleo de terminal
 
 ## Conferir SHA-256
 
-Windows: `Get-FileHash .\ProjetoP2P-Setup-v0.4.0.exe -Algorithm SHA256` e compare com a linha do arquivo na release. Linux: `sha256sum --check SHA256SUMS.txt` na pasta com os artefatos. Se baixou apenas alguns arquivos, compare suas linhas ou hashes individuais; a checagem completa acusa os arquivos ausentes. O hash verifica integridade, não substitui autenticação do publicador.
+Windows: `Get-FileHash .\ProjetoP2P-Setup-v0.4.1.exe -Algorithm SHA256` e compare com a linha do arquivo na release. Linux: `sha256sum --check SHA256SUMS.txt` na pasta com os artefatos. Se baixou apenas alguns arquivos, compare suas linhas ou hashes individuais; a checagem completa acusa os arquivos ausentes. O hash verifica integridade, não substitui autenticação do publicador.
 
 ## Primeiro contato
 

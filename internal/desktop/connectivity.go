@@ -14,6 +14,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	ma "github.com/multiformats/go-multiaddr"
 	"projetop2p/internal/adapters"
+	"projetop2p/internal/endpoint"
 	"projetop2p/internal/firewall"
 	"projetop2p/internal/invite"
 	"projetop2p/internal/localdb"
@@ -53,6 +54,17 @@ func (c *Core) synchronize(s localdb.Settings) {
 		c.stopNode()
 		c.networkErr = selectErr.Error()
 		return
+	}
+	// Pin the resolved GUID so a reboot or a second adapter cannot change the choice.
+	if mode(s) != "auto" && s.InterfaceID == "" && c.selection.Selected != nil {
+		s.InterfaceID = c.selection.Selected.ID
+		s.Mode = mode(s)
+		s.Port = port(s)
+		if err := c.db.SaveSettings(s); err != nil {
+			c.stopNode()
+			c.networkErr = "Não foi possível persistir a interface: " + err.Error()
+			return
+		}
 	}
 	fingerprint := fmt.Sprintf("%s|%s|%s|%d|%v|%v|%t", mode(s), s.InterfaceID, c.selection.IP, port(s), s.Bootstrap, s.Relays, s.Assisted)
 	if c.node != nil && c.binding == fingerprint {
@@ -97,23 +109,7 @@ func (c *Core) allowedAddress(raw string, s localdb.Settings) bool {
 	if e != nil {
 		return false
 	}
-	ip, _ := a.ValueForProtocol(ma.P_IP4)
-	if mode(s) == "auto" {
-		return !adapters.VirtualIPv4(ip)
-	}
-	if _, e = a.ValueForProtocol(ma.P_CIRCUIT); e == nil {
-		return false
-	}
-	if ip == "" {
-		return false
-	}
-	if _, e = a.ValueForProtocol(ma.P_TCP); e != nil {
-		return false
-	}
-	if v, known := adapters.VPN(mode(s)); known {
-		return strings.HasPrefix(ip, v.IPv4Prefix)
-	}
-	return true
+	return endpoint.Allowed(a, mode(s))
 }
 func (c *Core) refreshAddresses() {
 	if c.node == nil {
@@ -128,6 +124,9 @@ func (c *Core) refreshAddresses() {
 		return
 	}
 	for _, p := range contacts {
+		if requiredMode(p.Scope, s) != "" {
+			continue
+		}
 		id, e := peer.Decode(p.ID)
 		if e != nil || len(c.node.Host.Network().ConnsToPeer(id)) == 0 {
 			continue
@@ -149,25 +148,126 @@ func (c *Core) refreshAddresses() {
 	}
 }
 
+type ConnectionTarget struct {
+	Address string `json:"address"`
+	IP      string `json:"ip"`
+	Port    int    `json:"port"`
+}
 type ConnectionTest struct {
-	ID        string          `json:"id"`
-	Connected bool            `json:"connected"`
-	Path      string          `json:"path"`
-	RTTMillis int64           `json:"rttMillis"`
-	Message   string          `json:"message"`
-	Firewall  firewall.Report `json:"firewall"`
+	ID              string             `json:"id"`
+	Connected       bool               `json:"connected"`
+	Authenticated   bool               `json:"authenticated"`
+	ContactSaved    bool               `json:"contactSaved"`
+	RequiredMode    string             `json:"requiredMode,omitempty"`
+	Path            string             `json:"path"`
+	RTTMillis       int64              `json:"rttMillis"`
+	Message         string             `json:"message"`
+	Code            string             `json:"code"`
+	Mode            string             `json:"mode"`
+	Interface       string             `json:"interface"`
+	InterfaceID     string             `json:"interfaceId"`
+	InterfaceIndex  int                `json:"interfaceIndex"`
+	LocalIP         string             `json:"localIp"`
+	LocalPort       int                `json:"localPort"`
+	ListenAddresses []string           `json:"listenAddresses"`
+	Targets         []ConnectionTarget `json:"targets"`
+	LocalAddress    string             `json:"localAddress"`
+	RemoteAddress   string             `json:"remoteAddress"`
+	Firewall        firewall.Report    `json:"firewall"`
 }
 
-func (c *Core) testLocked(id string) ConnectionTest {
-	r := ConnectionTest{ID: id, Path: "offline"}
+func requiredMode(scope string, s localdb.Settings) string {
+	if adapters.IsVPN(scope) && mode(s) != scope && mode(s) != "interface" {
+		return scope
+	}
+	if scope == "interface" && mode(s) == "auto" {
+		return "interface"
+	}
+	return ""
+}
+func (c *Core) newTest(id string) ConnectionTest {
+	s, _ := c.db.Settings()
+	r := ConnectionTest{ID: id, Path: "offline", Mode: mode(s), LocalIP: c.selection.IP, LocalPort: port(s), Targets: []ConnectionTarget{}, ListenAddresses: []string{}}
+	if i := c.selection.Selected; i != nil {
+		r.Interface = i.Name
+		r.InterfaceID = i.ID
+		r.InterfaceIndex = i.Index
+	}
+	if c.node != nil {
+		for _, a := range c.node.Host.Network().ListenAddresses() {
+			r.ListenAddresses = append(r.ListenAddresses, a.String())
+			if value, e := a.ValueForProtocol(ma.P_TCP); e == nil {
+				if n, e := strconv.Atoi(value); e == nil && n > 0 {
+					r.LocalPort = n
+				}
+			}
+		}
+	}
+	return r
+}
+func (c *Core) probeLocked(ctx context.Context, info peer.AddrInfo, r *ConnectionTest) {
+	for _, a := range info.Addrs {
+		ip, n, _ := endpoint.TCP4(a)
+		r.Targets = append(r.Targets, ConnectionTarget{Address: a.String() + "/p2p/" + info.ID.String(), IP: ip, Port: n})
+	}
+	if len(info.Addrs) == 0 {
+		r.Code = "no_compatible_address"
+		r.Message = "Nenhum endereço compatível. Peça um novo convite gerado com a VPN correta selecionada"
+		return
+	}
+	if e := c.node.Connect(ctx, info); e != nil {
+		r.Code = "dial_failed"
+		r.Message = fmt.Sprintf("Peer não respondeu. Modo: %s; interface: %s (índice %d); origem: %s; porta de escuta: %d; destinos: %v. Confirme o convite atual, a mesma rede VPN e o aplicativo aberto. A falha não comprova bloqueio no firewall. Detalhe: %v", adapters.Name(r.Mode), r.Interface, r.InterfaceIndex, r.LocalIP, r.LocalPort, r.Targets, e)
+		if r.Mode == "auto" && c.selection.Detected {
+			r.Message += ". VPN detectada, mas não selecionada: ative Radmin/Hamachi nos dois PCs e gere um novo convite"
+		}
+		return
+	}
+	r.Authenticated = true
+	for _, conn := range c.node.Host.Network().ConnsToPeer(info.ID) {
+		r.LocalAddress = conn.LocalMultiaddr().String()
+		r.RemoteAddress = conn.RemoteMultiaddr().String()
+		r.Path = "direta"
+		if conn.Stat().Limited {
+			r.Path = "relay"
+		}
+		break
+	}
+	select {
+	case value, ok := <-ping.Ping(libnet.WithAllowLimitedConn(ctx, "teste autenticado"), c.node.Host, info.ID):
+		if !ok {
+			r.Code = "ping_failed"
+			r.Message = "Handshake autenticado, mas o teste de resposta foi interrompido"
+			return
+		}
+		if value.Error != nil {
+			r.Code = "ping_failed"
+			r.Message = "Handshake autenticado, mas o ping libp2p falhou: " + value.Error.Error()
+			return
+		}
+		r.Connected = true
+		r.RTTMillis = value.RTT.Milliseconds()
+		r.Code = "connected"
+		r.Message = "Peer ID autenticado e ping libp2p recebido de " + r.RemoteAddress
+	case <-ctx.Done():
+		r.Code = "ping_timeout"
+		r.Message = "Handshake autenticado, mas o tempo do ping esgotou"
+	}
+}
+func (c *Core) testLocked(id string) (r ConnectionTest) {
+	s, _ := c.db.Settings()
+	c.synchronize(s)
+	r = c.newTest(id)
+	defer func() { c.lastTest = &r }()
 	if c.node == nil {
+		r.Code = "interface_unavailable"
 		r.Message = c.networkErr
-		return r
+		return
 	}
 	contacts, e := c.db.Contacts()
 	if e != nil {
 		r.Message = e.Error()
-		return r
+		return
 	}
 	var target *localdb.Contact
 	for _, p := range contacts {
@@ -178,62 +278,38 @@ func (c *Core) testLocked(id string) ConnectionTest {
 		}
 	}
 	if target == nil {
+		r.Code = "unknown_contact"
 		r.Message = "Adicione um contato por convite primeiro"
-		return r
+		return
+	}
+	r.ContactSaved = true
+	if required := requiredMode(target.Scope, s); required != "" {
+		r.Code = "mode_mismatch"
+		r.RequiredMode = required
+		r.Message = "Este contato exige o modo " + adapters.Name(required)
+		return
 	}
 	pid, e := peer.Decode(id)
 	if e != nil {
 		r.Message = e.Error()
-		return r
+		return
+	}
+	info := peer.AddrInfo{ID: pid}
+	for _, raw := range target.Addresses {
+		if c.allowedAddress(raw, s) {
+			p, e := network.ParseAddress(raw)
+			if e == nil {
+				info.Addrs = append(info.Addrs, p.Addrs...)
+			}
+		}
 	}
 	ctx, cancel := context.WithTimeout(c.ctx, 8*time.Second)
 	defer cancel()
-	s, _ := c.db.Settings()
-	info := peer.AddrInfo{ID: pid}
-	for _, a := range target.Addresses {
-		if !c.allowedAddress(a, s) {
-			continue
-		}
-		p, e := network.ParseAddress(a)
-		if e == nil {
-			info.Addrs = append(info.Addrs, p.Addrs...)
-		}
+	c.probeLocked(ctx, info, &r)
+	if r.Connected {
+		c.refreshAddresses()
 	}
-	if len(info.Addrs) == 0 {
-		r.Message = "O convite não tem endereço compatível com o modo selecionado"
-		return r
-	}
-	if e = c.node.Connect(ctx, info); e != nil {
-		r.Message = "Peer não respondeu. Confirme a mesma rede da VPN selecionada, IP atual, aplicativo aberto e permissão TCP no firewall. Timeout não identifica sozinho a causa. Detalhe: " + e.Error()
-		return r
-	}
-	var result ping.Result
-	select {
-	case value, ok := <-ping.Ping(libnet.WithAllowLimitedConn(ctx, "teste autenticado"), c.node.Host, pid):
-		if !ok {
-			r.Message = "Teste interrompido ou sem resposta"
-			return r
-		}
-		result = value
-	case <-ctx.Done():
-		r.Message = "Tempo do teste esgotado"
-		return r
-	}
-	if result.Error != nil {
-		r.Message = "Conexão autenticada, mas o teste de resposta falhou: " + result.Error.Error()
-		return r
-	}
-	r.Connected = true
-	r.Path = "direta"
-	r.RTTMillis = result.RTT.Milliseconds()
-	for _, p := range c.node.Status().Peers {
-		if p.ID == id {
-			r.Path = p.Path
-		}
-	}
-	r.Message = "Peer ID autenticado e resposta libp2p recebida"
-	c.refreshAddresses()
-	return r
+	return
 }
 func (c *Core) TestConnectivity(id string) (ConnectionTest, error) {
 	c.mu.Lock()
@@ -266,6 +342,19 @@ func (c *Core) ConnectInvite(raw string) (ConnectionTest, error) {
 		if e != nil {
 			return ConnectionTest{}, e
 		}
+		c.mu.Lock()
+		settings, _ := c.db.Settings()
+		required := requiredMode(i.Scope, settings)
+		if required != "" {
+			r := c.newTest(i.ID)
+			r.RequiredMode = required
+			r.Code = "mode_mismatch"
+			r.Message = "O convite usa " + adapters.Name(required) + ". Confirme a troca de modo antes de conectar"
+			c.lastTest = &r
+			c.mu.Unlock()
+			return r, nil
+		}
+		c.mu.Unlock()
 		if e = c.AddContact(raw); e != nil {
 			return ConnectionTest{}, e
 		}
@@ -277,8 +366,21 @@ func (c *Core) ConnectInvite(raw string) (ConnectionTest, error) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	s0, _ := c.db.Settings()
+	c.synchronize(s0)
+	r := c.newTest(p.ID.String())
+	defer func() { c.lastTest = &r }()
+	a, _ := ma.NewMultiaddr(raw)
+	if hint := endpoint.VPNHint(a); hint != "" && requiredMode(hint, s0) != "" {
+		r.RequiredMode = hint
+		r.Code = "mode_mismatch"
+		r.Message = "Este endereço exige " + adapters.Name(hint) + " ou a interface manual correspondente"
+		return r, nil
+	}
 	if c.node == nil {
-		return ConnectionTest{}, errors.New(c.networkErr)
+		r.Code = "interface_unavailable"
+		r.Message = c.networkErr
+		return r, nil
 	}
 	s, e := c.db.Settings()
 	if e != nil {
@@ -292,8 +394,9 @@ func (c *Core) ConnectInvite(raw string) (ConnectionTest, error) {
 	}
 	ctx, cancel := context.WithTimeout(c.ctx, 8*time.Second)
 	defer cancel()
-	if e = c.node.Connect(ctx, p); e != nil {
-		return ConnectionTest{}, fmt.Errorf("peer não respondeu; confira a VPN selecionada, endereço e firewall: %w", e)
+	c.probeLocked(ctx, p, &r)
+	if !r.Authenticated {
+		return r, nil
 	}
 	name := "Contato " + p.ID.String()[:8]
 	scope := ""
@@ -306,9 +409,7 @@ func (c *Core) ConnectInvite(raw string) (ConnectionTest, error) {
 			if v.ID == contact.ID {
 				contact.Name = v.Name
 				contact.PublicKey = v.PublicKey
-				if v.Scope != "" {
-					contact.Scope = v.Scope
-				}
+
 				break
 			}
 		}
@@ -317,5 +418,7 @@ func (c *Core) ConnectInvite(raw string) (ConnectionTest, error) {
 		return ConnectionTest{}, e
 	}
 	c.node.Remember(p)
-	return c.testLocked(p.ID.String()), nil
+	r.ContactSaved = true
+	c.refreshAddresses()
+	return r, nil
 }

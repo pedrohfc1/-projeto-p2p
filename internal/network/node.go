@@ -30,6 +30,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	"projetop2p/internal/discovery"
+	"projetop2p/internal/endpoint"
 	"projetop2p/internal/identity"
 	"projetop2p/internal/messaging"
 	"projetop2p/internal/security"
@@ -51,6 +52,7 @@ type Config struct {
 	Announce        []string
 	LocalOnly       bool
 	ScopedIP        string
+	ScopedMode      string
 	PublicDiscovery bool
 }
 type Node struct {
@@ -70,6 +72,7 @@ type Node struct {
 	onMessage    func(messaging.Message) error
 	relayMetrics *relayMetrics
 	localOnly    bool
+	scopedMode   string
 }
 
 func ParseAddress(s string) (peer.AddrInfo, error) {
@@ -152,15 +155,8 @@ func New(parent context.Context, c Config) (*Node, error) {
 	if c.LocalOnly {
 		opts = append(opts, libp2p.DisableRelay(), libp2p.NoTransports, libp2p.Transport(tcp.NewTCPTransport, tcp.WithDialerForAddr(func(ma.Multiaddr) (tcp.ContextDialer, error) {
 			return &stdnet.Dialer{LocalAddr: &stdnet.TCPAddr{IP: stdnet.ParseIP(c.ScopedIP)}, Timeout: 8 * time.Second}, nil
-		})), libp2p.ConnectionGater(interfaceGate{c.ScopedIP}), libp2p.ForceReachabilityPrivate(), libp2p.AddrsFactory(func(as []ma.Multiaddr) []ma.Multiaddr {
-			out := []ma.Multiaddr{}
-			for _, a := range as {
-				ip, _ := a.ValueForProtocol(ma.P_IP4)
-				if ip == c.ScopedIP {
-					out = append(out, a)
-				}
-			}
-			return out
+		})), libp2p.ConnectionGater(interfaceGate{ip: c.ScopedIP, scope: c.ScopedMode}), libp2p.ForceReachabilityPrivate(), libp2p.AddrsFactory(func(as []ma.Multiaddr) []ma.Multiaddr {
+			return scopedAddresses(as, c.ScopedIP, c.Listen)
 		}))
 	} else {
 		opts = append(opts, libp2p.NATPortMap(), libp2p.EnableHolePunching(), libp2p.EnableRelay())
@@ -235,6 +231,7 @@ func New(parent context.Context, c Config) (*Node, error) {
 	n := &Node{Host: h, DHT: kd, Messages: make(chan messaging.Message, 64), Events: make(chan string, 32), ctx: ctx, cancel: cancel, known: map[peer.ID]peer.AddrInfo{}, relays: source, relayServer: c.RelayServer, reachability: "desconhecida", onMessage: c.OnMessage}
 	n.relayMetrics = metrics
 	n.localOnly = c.LocalOnly
+	n.scopedMode = c.ScopedMode
 	if c.ForcePrivate {
 		n.reachability = "privada (modo assistido)"
 	}
@@ -293,6 +290,22 @@ func New(parent context.Context, c Config) (*Node, error) {
 	return n, nil
 }
 func (n *Node) remember(p peer.AddrInfo) {
+	if n.localOnly {
+		filtered := []ma.Multiaddr{}
+		scope := n.scopedMode
+		if scope == "" {
+			scope = "interface"
+		}
+		for _, a := range p.Addrs {
+			if endpoint.Allowed(a, scope) {
+				filtered = append(filtered, a)
+			}
+		}
+		p.Addrs = filtered
+	}
+	if len(p.Addrs) == 0 {
+		return
+	}
 	if p.ID == n.Host.ID() {
 		return
 	}
@@ -304,7 +317,11 @@ func (n *Node) remember(p peer.AddrInfo) {
 		// addresses for one identity. Prefer freshly observed addresses and bound memory.
 		merged := []ma.Multiaddr{}
 		seen := map[string]bool{}
-		for _, a := range append(append([]ma.Multiaddr{}, p.Addrs...), n.known[p.ID].Addrs...) {
+		previous := n.known[p.ID].Addrs
+		if n.localOnly {
+			previous = nil
+		}
+		for _, a := range append(append([]ma.Multiaddr{}, p.Addrs...), previous...) {
 			if !seen[a.String()] && len(merged) < 16 {
 				merged = append(merged, a)
 				seen[a.String()] = true
@@ -316,6 +333,9 @@ func (n *Node) remember(p peer.AddrInfo) {
 }
 func (n *Node) Connect(ctx context.Context, p peer.AddrInfo) error {
 	n.remember(p)
+	if n.localOnly && n.Host.Network().Connectedness(p.ID) != net.Connected {
+		n.Host.Peerstore().ClearAddrs(p.ID)
+	}
 	return n.Host.Connect(ctx, p)
 }
 

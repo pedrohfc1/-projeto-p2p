@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"projetop2p/internal/adapters"
+	"projetop2p/internal/endpoint"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -103,6 +104,9 @@ func Parse(s string, now time.Time) (Invite, error) {
 		p, e := peer.AddrInfoFromP2pAddr(a)
 		if e != nil {
 			return i, e
+		}
+		if contains(i.Addresses, s) && i.Scope != "" && !endpoint.Allowed(a, i.Scope) {
+			return i, errors.New("convite de VPN/interface contém endereço incompatível, link-local ou porta TCP inválida")
 		}
 		if contains(i.Addresses, s) && p.ID != id {
 			return i, errors.New("endereço pertence a outra identidade")

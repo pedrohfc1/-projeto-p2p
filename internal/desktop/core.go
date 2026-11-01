@@ -13,7 +13,9 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
+	ma "github.com/multiformats/go-multiaddr"
 	"projetop2p/internal/adapters"
+	"projetop2p/internal/endpoint"
 	"projetop2p/internal/identity"
 	"projetop2p/internal/invite"
 	"projetop2p/internal/localdb"
@@ -29,6 +31,7 @@ type Core struct {
 	cancel     context.CancelFunc
 	dir        string
 	lastEvent  string
+	lastTest   *ConnectionTest
 	enumerate  adapters.Provider
 	selection  adapters.Selection
 	networkErr string
@@ -50,6 +53,7 @@ type State struct {
 	Event        string             `json:"event"`
 	Connectivity adapters.Selection `json:"connectivity"`
 	NetworkError string             `json:"networkError"`
+	Diagnostic   *ConnectionTest    `json:"diagnostic"`
 }
 
 func DefaultDir() (string, error) {
@@ -88,11 +92,10 @@ func OpenWithProvider(parent context.Context, dir string, provider adapters.Prov
 	return c, nil
 }
 func (c *Core) start(s localdb.Settings) error {
-	cfg := network.Config{DataDir: c.dir, Listen: []string{"/ip4/0.0.0.0/tcp/0"}, Bootstrap: s.Bootstrap, Relays: s.Relays, ForcePrivate: s.Assisted, PublicDiscovery: true}
+	cfg := c.config(s)
 	scope := ""
 	if mode(s) != "auto" {
 		scope = mode(s)
-		cfg = network.Config{DataDir: c.dir, Listen: []string{fmt.Sprintf("/ip4/%s/tcp/%d", c.selection.IP, port(s))}, LocalOnly: true, ScopedIP: c.selection.IP}
 	}
 	cfg.OnMessage = func(m messaging.Message) error { return c.receiveScoped(m, scope) }
 	n, e := network.New(c.ctx, cfg)
@@ -119,14 +122,18 @@ func (c *Core) remember(p localdb.Contact) {
 	if mode(s) == "auto" && p.Scope != "" {
 		return
 	}
+	info := peer.AddrInfo{}
 	for _, a := range p.Addresses {
-		if !c.allowedAddress(a, s) {
-			continue
+		if c.allowedAddress(a, s) {
+			v, e := network.ParseAddress(a)
+			if e == nil {
+				info.ID = v.ID
+				info.Addrs = append(info.Addrs, v.Addrs...)
+			}
 		}
-		v, e := network.ParseAddress(a)
-		if e == nil {
-			c.node.Remember(v)
-		}
+	}
+	if len(info.Addrs) > 0 {
+		c.node.Remember(info)
 	}
 }
 func (c *Core) receiveScoped(m messaging.Message, scope string) error {
@@ -170,6 +177,11 @@ func (c *Core) State(selected string) (State, error) {
 		return s, e
 	}
 	c.synchronize(s.Settings)
+	s.Settings, e = c.db.Settings()
+	if e != nil {
+		return s, e
+	}
+	s.Diagnostic = c.lastTest
 	s.Connectivity = c.selection
 	s.NetworkError = c.networkErr
 	id, _ := peer.IDFromPrivateKey(c.key)
@@ -226,14 +238,24 @@ func (c *Core) State(selected string) (State, error) {
 func (c *Core) Invite() (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.node == nil {
-		return "", errors.New("rede indisponível")
-	}
 	s, e := c.db.Settings()
 	if e != nil {
 		return "", e
 	}
-	addrs := c.node.Addresses()
+	c.synchronize(s)
+	if c.node == nil {
+		return "", errors.New("rede indisponível: " + c.networkErr)
+	}
+	addrs := []string{}
+	for _, raw := range c.node.Addresses() {
+		a, err := ma.NewMultiaddr(raw)
+		if err == nil && endpoint.Allowed(a, mode(s)) {
+			addrs = append(addrs, raw)
+		}
+	}
+	if len(addrs) == 0 {
+		return "", errors.New("nenhum endereço válido anunciado; escolha e ative a interface antes de gerar convite")
+	}
 	if len(addrs) > 16 {
 		addrs = addrs[:16]
 	}
@@ -259,15 +281,23 @@ func (c *Core) AddContact(raw string) error {
 	if e != nil {
 		return e
 	}
-	if mode(settings) == "auto" && i.Scope != "" {
-		return errors.New("ative a VPN correspondente ou seleção manual antes de adicionar esse convite")
+	if requiredMode(i.Scope, settings) != "" {
+		return fmt.Errorf("este convite usa %s; ative esse modo antes de conectar", adapters.Name(i.Scope))
 	}
+	addresses := []string{}
 	for _, a := range i.Addresses {
-		if !c.allowedAddress(a, settings) {
-			return errors.New("convite incompatível com a interface/modo selecionado")
+		if c.allowedAddress(a, settings) {
+			addresses = append(addresses, a)
 		}
 	}
-	p := localdb.Contact{ID: i.ID, Name: i.Name, Addresses: i.Addresses, PublicKey: i.PublicKey, Scope: i.Scope}
+	if len(addresses) == 0 {
+		return errors.New("o convite não contém endereço compatível; peça um novo convite gerado no modo Radmin/Hamachi correto")
+	}
+	scope := i.Scope
+	if scope == "" && mode(settings) != "auto" {
+		scope = mode(settings)
+	}
+	p := localdb.Contact{ID: i.ID, Name: i.Name, Addresses: addresses, PublicKey: i.PublicKey, Scope: scope}
 	if e = c.db.Contact(p); e != nil {
 		return e
 	}
@@ -308,10 +338,17 @@ func (c *Core) SaveSettings(s localdb.Settings) error {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	s.Mode = mode(s)
+	if s.Mode != "auto" {
+		s.Port = port(s)
+	}
 	if e := c.db.SaveSettings(s); e != nil {
 		return e
 	}
 	c.synchronize(s)
+	if c.networkErr != "" {
+		return errors.New("Configuração salva, mas o nó não iniciou: " + c.networkErr)
+	}
 	return nil
 }
 func (c *Core) Send(id, text string) error {
@@ -359,4 +396,12 @@ func (c *Core) Send(id, text string) error {
 		return errors.New("Sem confirmacao; pode ter havido recebimento. Verifique modo, interface, IP, firewall ou relays: " + e.Error())
 	}
 	return nil
+}
+
+func (c *Core) config(s localdb.Settings) network.Config {
+	cfg := network.Config{DataDir: c.dir, Listen: []string{"/ip4/0.0.0.0/tcp/0"}, Bootstrap: s.Bootstrap, Relays: s.Relays, ForcePrivate: s.Assisted, PublicDiscovery: true}
+	if mode(s) != "auto" {
+		cfg = network.Config{DataDir: c.dir, Listen: []string{fmt.Sprintf("/ip4/%s/tcp/%d", c.selection.IP, port(s))}, LocalOnly: true, ScopedIP: c.selection.IP, ScopedMode: mode(s)}
+	}
+	return cfg
 }

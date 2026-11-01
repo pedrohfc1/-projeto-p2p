@@ -1,4 +1,4 @@
-# Conectar dois Windows usando Hamachi — versão 0.4.0
+# Conectar dois Windows usando Hamachi — versão 0.4.1
 
 ## Antes de abrir o Projeto P2P
 
@@ -6,9 +6,9 @@ Cada pessoa instala e autentica o Hamachi por conta própria e entra na **mesma 
 
 Não é necessário contratar VPS, configurar bootstraps ou encaminhar portas dos roteadores de casa para esse modo. Ainda é necessário que a rede virtual e o firewall permitam TCP entre os endereços virtuais. O Hamachi depende da infraestrutura de seu fornecedor e pode encaminhar tráfego por retransmissão própria.
 
-## Instalação 0.4.0
+## Instalação 0.4.1
 
-Feche a versão antiga e execute `ProjetoP2P-Setup-v0.4.0.exe` nos dois PCs. Confirme a instalação por usuário e escolha se deseja atalho de área de trabalho. O instalador registra desinstalador e verifica/instala WebView2 se necessário, com internet. Não inclui Hamachi. Não copie sua pasta de perfil para seu amigo.
+Feche a versão antiga e execute `ProjetoP2P-Setup-v0.4.1.exe` nos dois PCs. Confirme a instalação por usuário e escolha se deseja atalho de área de trabalho. O instalador registra desinstalador e verifica/instala WebView2 se necessário, com internet. Não inclui Hamachi. Não copie sua pasta de perfil para seu amigo.
 
 O diretório de programa é `%LOCALAPPDATA%\Programs\ProjetoP2P`; o perfil permanece em `%APPDATA%\ProjetoP2P`. A identidade, os contatos, as mensagens e configurações da versão anterior são preservados. Chave protegida por DPAPI é vinculada ao usuário/máquina, não é um arquivo portável para compartilhar.
 
@@ -92,7 +92,7 @@ Essa regra restringe programa, endereço local, interface e porta. Se mudar a po
 
 Registre os resultados de cada item, sem divulgar senhas, convites ou IPs dos participantes publicamente:
 
-1. Dois Windows em redes residenciais diferentes, ambos com versão 0.4.0.
+1. Dois Windows em redes residenciais diferentes, ambos com versão 0.4.1.
 2. Ambos na mesma rede Hamachi e disponíveis no cliente Hamachi.
 3. Adaptador/IP corretos nos dois Projetos P2P.
 4. TCP alcançável em ambos os sentidos ou mensagem clara de falha.

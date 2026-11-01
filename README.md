@@ -1,19 +1,19 @@
 # Projeto P2P
 
-Mensageiro desktop experimental com identidade criptográfica persistente e comunicação autenticada entre usuários via libp2p. A versão **0.4.0** oferece chat de texto, contatos, histórico local e conexão por convite, com suporte a Hamachi e Radmin VPN no Windows.
+Mensageiro desktop experimental com identidade criptográfica persistente e comunicação autenticada entre usuários via libp2p. A versão **0.4.1** oferece chat de texto, contatos, histórico local e conexão por convite, com suporte a Hamachi e Radmin VPN no Windows.
 
 ## Baixar e instalar
 
-**Usuários Windows não precisam instalar Go, Node.js ou ferramentas de desenvolvimento.** Baixe `ProjetoP2P-Setup-v0.4.0.exe`, feche versões anteriores e execute o instalador. Requisitos: Windows 10/11 AMD64 e Microsoft Edge WebView2; o instalador oferece o runtime Microsoft se ausente (internet necessária). Instala por usuário, oferece atalhos e desinstalador e preserva o perfil existente. O aplicativo e o setup ainda não têm assinatura digital de distribuição; não desative as proteções do Windows.
+**Usuários Windows não precisam instalar Go, Node.js ou ferramentas de desenvolvimento.** Baixe `ProjetoP2P-Setup-v0.4.1.exe`, feche versões anteriores e execute o instalador. Requisitos: Windows 10/11 AMD64 e Microsoft Edge WebView2; o instalador oferece o runtime Microsoft se ausente (internet necessária). Instala por usuário, oferece atalhos e desinstalador e preserva o perfil existente. O aplicativo e o setup ainda não têm assinatura digital de distribuição; não desative as proteções do Windows.
 
 **[Baixar a versão mais recente](https://github.com/pedrohfc1/-projeto-p2p/releases/latest)** — endereço configurado para o repositório informado. A primeira publicação ainda está pendente; o link só disponibilizará downloads após uma release publicada. O aviso DHT [GO-2024-3218](https://pkg.go.dev/vuln/GO-2024-3218) continua bloqueando o gate de segurança.
 
-Na release, escolha o instalador Windows; o ZIP portátil é uma alternativa identificada separadamente. `SHA256SUMS.txt` permite conferir os arquivos. No Linux Mint 22 AMD64, use o pacote desktop `ProjetoP2P-v0.4.0-linux-amd64.tar.gz`, com GTK3 e WebKitGTK 4.1 disponíveis no sistema. [Instalação e atualização](docs/INSTALACAO.md).
+Na release, escolha o instalador Windows; o ZIP portátil é uma alternativa identificada separadamente. `SHA256SUMS.txt` permite conferir os arquivos. No Linux Mint 22 AMD64, use o pacote desktop `ProjetoP2P-v0.4.1-linux-amd64.tar.gz`, com GTK3 e WebKitGTK 4.1 disponíveis no sistema. [Instalação e atualização](docs/INSTALACAO.md).
 
 ## Conectar duas pessoas
 
 1. Para usar Radmin VPN ou Hamachi, cada pessoa instala **somente a VPN escolhida**, entra na mesma rede virtual pelo cliente do fornecedor e abre o Projeto P2P. Nenhuma VPN é instalada ou configurada pelo aplicativo.
-2. Em Configurações, selecione **Radmin VPN** ou **Hamachi**, confirme adaptador/IPv4 e salve. Nesse modo não precisa preencher Bootstraps ou Relays independentes, nem abrir portas no roteador, desde que a VPN e o firewall permitam TCP entre participantes.
+2. Se houver VPN detectada no modo nativo, a geração de convite solicita escolher Radmin/Hamachi ou continuar explicitamente no modo nativo. Em Configurações, selecione **Radmin VPN** ou **Hamachi**, confirme adaptador/IPv4 e salve. Nesse modo não precisa preencher Bootstraps ou Relays independentes, nem abrir portas no roteador, desde que a VPN e o firewall permitam TCP entre participantes.
 3. A pessoa A copia o convite e o envia por um canal de confiança. A pessoa B usa **Conectar por convite**. O convite contém o Peer ID e o multiaddr reais, com escopo assinado.
 4. Use **Testar conectividade** e confira conexão autenticada e ping libp2p. Adaptador ativo não significa contato conectado. Troque mensagens nos dois sentidos; troquem os dois convites para obter os nomes assinados recíprocos.
 
@@ -27,7 +27,7 @@ Identidade Ed25519 persistente, transporte Noise e mensagens assinadas autentica
 
 A rede não oferece entrega exatamente uma vez nem conectividade garantida sob qualquer NAT/firewall. A presença de um adaptador não comprova comunicação. Não há descoberta de todos os membros das VPNs: use convites e contatos conhecidos. Voz, blockchain e armazenamento distribuído de conteúdo não fazem parte desta versão.
 
-Os testes automatizados e as verificações do instalador estão documentados em [validação da distribuição](docs/VALIDACAO-DISTRIBUICAO.md). O teste Radmin entre dois PCs reais, a inspeção visual nativa, a instalação/atualização completa e a execução desktop Linux permanecem pendentes de aceitação; não são apresentados como validados.
+Os testes automatizados e as verificações do instalador estão documentados em [validação da correção Radmin](docs/VALIDACAO-RADMIN-v0.4.1.md). O teste local com adaptador Radmin real passou (dois perfis, ping e mensagem persistida); o teste Radmin entre dois PCs reais, a inspeção visual nativa, a instalação/atualização completa e a execução desktop Linux permanecem pendentes de aceitação; não são apresentados como validados.
 
 ## Desenvolvimento e publicação
 
@@ -52,6 +52,6 @@ No Linux, instale antes as dependências de desenvolvimento de [CONTRIBUTING.md]
 - [Publicar no GitHub e lançar versões](docs/PUBLICACAO.md)
 - [Histórico de mudanças](CHANGELOG.md)
 
-A CI verifica código e gera artefatos em Windows/Linux. Release publica somente para tags SemVer que coincidam com `VERSION`, após os testes. O disparo manual gera artefatos sem publicar. A permissão de escrita pertence apenas ao job publicador. Nenhum repositório remoto ou release foi criado nesta preparação.
+A CI verifica código e gera artefatos em Windows/Linux. Release publica somente para tags SemVer que coincidam com `VERSION`, após os testes. O disparo manual gera artefatos sem publicar. A permissão de escrita pertence apenas ao job publicador. O repositório já contém a preparação 0.4.0; a correção 0.4.1 foi preparada localmente, sem novo envio, tag ou release nesta tarefa.
 
 Licença [MIT](LICENSE), confirmada pelo mantenedor. Dependências têm [licenças próprias](THIRD_PARTY_NOTICES.md).
