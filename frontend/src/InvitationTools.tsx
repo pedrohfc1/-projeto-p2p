@@ -1,0 +1,7 @@
+import React,{useMemo,useState} from 'react';
+import QRCode from 'qrcode/lib/core/qrcode.js';
+export function InvitationTools({value,onChange,legacy}:{value:string;onChange:(v:string)=>void;legacy:()=>Promise<string>}){
+ const [show,setShow]=useState(false),[error,setError]=useState('');
+ const symbol=useMemo(()=>{if(!show)return null;try{return QRCode.create(value,{errorCorrectionLevel:'M'})}catch{return null}},[value,show]);
+ return <div className="invitation-tools"><small>{new TextEncoder().encode(value).length} bytes · validação local · sem servidor</small><div><button className="secondary" onClick={()=>setShow(!show)}>{show?'Ocultar QR Code':'Gerar QR Code'}</button><button className="secondary" onClick={()=>{setError('');void legacy().then(onChange).catch(e=>setError(String(e)))}}>Formato antigo (0.5.0)</button></div>{error&&<p role="alert">{error}</p>}{show&&(symbol?<svg role="img" aria-label="QR Code do convite" viewBox={`0 0 ${symbol.modules.size+8} ${symbol.modules.size+8}`} style={{width:'min(100%,360px)',background:'white'}}><title>Convite completo, sem envio a serviço externo</title><rect width="100%" height="100%" fill="white"/>{Array.from({length:symbol.modules.size},(_,y)=>Array.from({length:symbol.modules.size},(_,x)=>symbol.modules.get(y,x)?<rect key={`${x}-${y}`} x={x+4} y={y+4} width={1} height={1} fill="black"/>:null))}</svg>:<p role="alert">Convite grande demais para um único QR. Copie o texto completo; nenhuma informação será removida.</p>)}</div>
+}

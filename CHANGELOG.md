@@ -8,6 +8,13 @@ O projeto usa versionamento semântico. As versões abaixo descrevem desenvolvim
 - Auditoria de candidatos Git, gitleaks, análise de vulnerabilidades e documentação pública em português.
 - Licença MIT confirmada, testes do frontend e consistência de versão.
 
+## [0.5.1] — 2026-11-01
+
+- Envelope compacto Protobuf/Base64URL para contatos e comunidades, com assinatura e validação preservadas.
+- Leitor legado, conversão para 0.5.0, QR Code local e testes entre backends antigo/novo.
+- Estrutura local de códigos imprevisíveis, registros assinados, mirrors autorizados e revogação; sem resolução DHT/global.
+- Exemplos medidos: contato Radmin 553→193 caracteres; comunidade 869→327. Perfis e esquema 2 preservados.
+
 ## [0.5.0] — 2026-11-01
 
 - Comunidades com identidade única, metadados, membros, owner/moderator/member e convites assinados de uso único.

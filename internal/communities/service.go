@@ -307,7 +307,12 @@ func (s *Service) Join(ctx context.Context, raw string) (Receipt, error) {
 	if oldErr == nil {
 		base = old.State.Head
 	}
-	op, e := community.SignOperation(s.key, record.ID, base, community.Join, community.Body{Name: settings.Name, Invite: raw})
+	// Keep replicated operation payloads readable by 0.5.0 reducers.
+	legacy, e := community.LegacyInvite(raw)
+	if e != nil {
+		return result, e
+	}
+	op, e := community.SignOperation(s.key, record.ID, base, community.Join, community.Body{Name: settings.Name, Invite: legacy})
 	if e != nil {
 		return result, e
 	}

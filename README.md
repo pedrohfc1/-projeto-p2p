@@ -1,14 +1,14 @@
 # Projeto P2P
 
-Mensageiro desktop experimental com identidade criptográfica persistente e comunicação autenticada entre usuários via libp2p. A versão **0.5.0** adiciona comunidades, canais de texto, convites assinados e papéis verificados no backend, preservando chat individual, contatos, histórico e Radmin/Hamachi. Salas de voz são somente definições; não há áudio, vídeo ou tela nesta fase.
+Mensageiro desktop experimental com identidade criptográfica persistente e comunicação autenticada entre usuários via libp2p. A versão **0.5.1** adiciona comunidades, canais de texto, convites assinados e papéis verificados no backend, preservando chat individual, contatos, histórico e Radmin/Hamachi. Salas de voz são somente definições; não há áudio, vídeo ou tela nesta fase.
 
 ## Baixar e instalar
 
-**Usuários Windows não precisam instalar Go, Node.js ou ferramentas de desenvolvimento.** Baixe `ProjetoP2P-Setup-v0.5.0.exe`, feche versões anteriores e execute o instalador. Requisitos: Windows 10/11 AMD64 e Microsoft Edge WebView2; o instalador oferece o runtime Microsoft se ausente (internet necessária). Instala por usuário, oferece atalhos e desinstalador e preserva o perfil existente. O aplicativo e o setup ainda não têm assinatura digital de distribuição; não desative as proteções do Windows.
+**Usuários Windows não precisam instalar Go, Node.js ou ferramentas de desenvolvimento.** Baixe `ProjetoP2P-Setup-v0.5.1.exe`, feche versões anteriores e execute o instalador. Requisitos: Windows 10/11 AMD64 e Microsoft Edge WebView2; o instalador oferece o runtime Microsoft se ausente (internet necessária). Instala por usuário, oferece atalhos e desinstalador e preserva o perfil existente. O aplicativo e o setup ainda não têm assinatura digital de distribuição; não desative as proteções do Windows.
 
 **[Baixar a versão mais recente](https://github.com/pedrohfc1/-projeto-p2p/releases/latest)** — endereço configurado para o repositório informado. A primeira publicação ainda está pendente; o link só disponibilizará downloads após uma release publicada. O aviso DHT [GO-2024-3218](https://pkg.go.dev/vuln/GO-2024-3218) continua bloqueando o gate de segurança.
 
-Na release, escolha o instalador Windows; o ZIP portátil é uma alternativa identificada separadamente. `SHA256SUMS.txt` permite conferir os arquivos. No Linux Mint 22 AMD64, use o pacote desktop `ProjetoP2P-v0.5.0-linux-amd64.tar.gz`, com GTK3 e WebKitGTK 4.1 disponíveis no sistema. [Instalação e atualização](docs/INSTALACAO.md).
+Na release, escolha o instalador Windows; o ZIP portátil é uma alternativa identificada separadamente. `SHA256SUMS.txt` permite conferir os arquivos. No Linux Mint 22 AMD64, use o pacote desktop `ProjetoP2P-v0.5.1-linux-amd64.tar.gz`, com GTK3 e WebKitGTK 4.1 disponíveis no sistema. [Instalação e atualização](docs/INSTALACAO.md).
 
 ## Comunidades 0.5
 
@@ -58,6 +58,10 @@ No Linux, instale antes as dependências de desenvolvimento de [CONTRIBUTING.md]
 - [Publicar no GitHub e lançar versões](docs/PUBLICACAO.md)
 - [Histórico de mudanças](CHANGELOG.md)
 
-A CI verifica código e gera artefatos em Windows/Linux. Release publica somente para tags SemVer que coincidam com `VERSION`, após os testes. O disparo manual gera artefatos sem publicar. A permissão de escrita pertence apenas ao job publicador. O repositório já contém a preparação 0.4.0; a versão 0.5.0 foi preparada localmente, sem novo envio, tag ou release nesta tarefa.
+A CI verifica código e gera artefatos em Windows/Linux. Release publica somente para tags SemVer que coincidam com `VERSION`, após os testes. O disparo manual gera artefatos sem publicar. A permissão de escrita pertence apenas ao job publicador. O repositório já contém a preparação 0.4.0; a versão 0.5.1 foi preparada localmente, sem novo envio, tag ou release nesta tarefa.
 
 Licença [MIT](LICENSE), confirmada pelo mantenedor. Dependências têm [licenças próprias](THIRD_PARTY_NOTICES.md).
+
+## Convites compactos 0.5.1
+
+Novos convites Protobuf/Base64URL são cerca de 62–65% menores nos exemplos medidos. Ed25519, identidade, escopo e prazo permanecem. Aceita convites antigos; o modal permite gerar envelope antigo para 0.5.0 e QR local. Códigos curtos são somente estrutura local, sem resolução global. [Formatos, comparação e compatibilidade](docs/CONVITES-v0.5.1.md).

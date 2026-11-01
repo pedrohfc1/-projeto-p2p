@@ -28,7 +28,7 @@ def main():
    assert state['network']['localOnly'] and not state['networkError']
    assert state['connectivity']['selected']['id']==adapter['id'] and state['connectivity']['selected']['provider']=='radmin'
    assert state['network']['addresses']==[expected]
-   raw=one.rpc('Invite');encoded=raw.split(':',1)[1];invite=json.loads(base64.urlsafe_b64decode(encoded+'='*((-len(encoded))%4)))
+   raw=one.rpc('Invite');legacy=one.rpc('LegacyInvite',Text=raw);encoded=legacy.split(':',1)[1];invite=json.loads(base64.urlsafe_b64decode(encoded+'='*((-len(encoded))%4)))
    assert invite['scope']=='radmin' and invite['id']==sid and invite['addresses']==[expected] and not invite['relays']
    one.close();one=Bridge(pathlib.Path(args.binary).resolve(),root/'one');processes.append(one)
    state=one.rpc('State',ID='')

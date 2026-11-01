@@ -5,7 +5,7 @@ p=Path(__file__).resolve().parent.parent
 v=(p/'VERSION').read_text(encoding='utf-8').strip()
 a=argparse.ArgumentParser();a.add_argument('kind',choices=['windows','linux','linux-cli','source','checksums']);args=a.parse_args()
 out=p/'dist/release';out.mkdir(parents=True,exist_ok=True)
-docs=['LICENSE','THIRD_PARTY_NOTICES.md','README.md','CHANGELOG.md','docs/INSTALACAO.md','docs/CONEXAO-RADMIN-VPN.md','docs/CONEXAO-HAMACHI.md','SECURITY.md','docs/COMUNIDADES-v0.5.md','docs/SEGURANCA-v0.5.md','docs/METRICAS-v0.5.md','docs/PLANO-v0.6-VOZ.md','docs/CRIPTOGRAFIA-E2EE-PLANO.md','docs/ASSINATURA-WINDOWS.md','docs/VALIDACAO-v0.5.md']
+docs=['LICENSE','THIRD_PARTY_NOTICES.md','README.md','CHANGELOG.md','docs/INSTALACAO.md','docs/CONEXAO-RADMIN-VPN.md','docs/CONEXAO-HAMACHI.md','SECURITY.md','docs/COMUNIDADES-v0.5.md','docs/SEGURANCA-v0.5.md','docs/METRICAS-v0.5.md','docs/PLANO-v0.6-VOZ.md','docs/CRIPTOGRAFIA-E2EE-PLANO.md','docs/ASSINATURA-WINDOWS.md','docs/VALIDACAO-v0.5.md','docs/CONVITES-v0.5.1.md']
 if args.kind=='checksums':
  files=sorted(f for f in out.iterdir() if f.is_file() and f.name!='SHA256SUMS.txt')
  assert files,'No release files'

@@ -1,0 +1,17 @@
+syntax = "proto3";
+package projetop2p.invite.v2;
+// Transport envelope only. Reconstruct the v1 signed semantic payload and verify Ed25519.
+message Invitation {
+ bytes name_utf8 = 1;
+ bytes ed25519_public_key_raw = 2;
+ uint64 expires_unix = 3;
+ bytes network_scope_utf8 = 4;
+ repeated bytes multiaddrs_without_final_self_p2p = 5;
+ repeated bytes relay_multiaddrs = 6;
+ bytes ed25519_signature = 7;
+ bytes community_id = 8;
+ bytes community_root = 9;
+ uint64 invite_epoch = 10;
+ bytes nonce = 11;
+ uint32 legacy_list_flags = 12;
+}

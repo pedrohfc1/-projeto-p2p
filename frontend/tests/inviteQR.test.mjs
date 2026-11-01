@@ -1,0 +1,2 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import QRCode from 'qrcode/lib/core/qrcode.js';
+test('QR local preserva texto completo e recusa capacidade excedida',()=>{const raw='projetop2p:c2:'+ 'aB-12_'.repeat(50);const qr=QRCode.create([{data:raw,mode:'byte'}],{errorCorrectionLevel:'M'});const bytes=Buffer.concat(qr.segments.map(s=>Buffer.from(s.data)));assert.equal(bytes.toString('utf8'),raw);assert.ok(qr.modules.size>=21);assert.throws(()=>QRCode.create('x'.repeat(24000),{errorCorrectionLevel:'M'}));});

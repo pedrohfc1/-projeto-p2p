@@ -6,6 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"path/filepath"
+	"projetop2p/internal/invite"
+	"strings"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -72,6 +74,16 @@ func (a *App) Invite() (string, error) {
 	}
 	return a.core.Invite()
 }
+func (a *App) LegacyInvite(raw string) (string, error) {
+	if e := a.initialized(); e != nil {
+		return "", e
+	}
+	raw = strings.TrimSpace(raw)
+	if strings.HasPrefix(raw, community.InvitePrefix) {
+		return community.LegacyInvite(raw)
+	}
+	return invite.Legacy(raw)
+}
 func (a *App) Copy(s string) error {
 	if err := a.initialized(); err != nil {
 		return err
@@ -129,7 +141,7 @@ func main() {
 	version := flag.Bool("version", false, "Informar versão sem iniciar a janela ou o nó")
 	flag.Parse()
 	if *version {
-		fmt.Println("0.5.0")
+		fmt.Println("0.5.1")
 		return
 	}
 	dataDir := *dir
