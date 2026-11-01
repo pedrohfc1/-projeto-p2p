@@ -1,0 +1,5 @@
+export const roleName=(role:string)=>({owner:'Proprietário',moderator:'Moderador',member:'Membro'}[role]||'Ingresso pendente');
+export const canManage=(role:string,denied=false,archived=false)=>!denied&&!archived&&(role==='owner'||role==='moderator');
+export const canPost=(role:string,kind:string,deleted:boolean,denied:boolean,archived:boolean)=>Boolean(role)&&kind==='text'&&!deleted&&!denied&&!archived;
+export const textBytes=(text:string)=>new TextEncoder().encode(text).length;
+export const friendlyError=(value:unknown)=>String(value).replace('owner role required','Apenas o proprietário pode realizar esta ação').replace('moderator or owner role required','Esta ação exige proprietário ou moderador').replace('current membership required','Sua participação precisa estar ativa').replace('conflict: synchronize and retry the control operation','O estado mudou em outro nó. Sincronize e repita a alteração').replace('invitation already consumed or invite limit reached','Convite já utilizado ou limite de convites atingido').replace('current membership required; access may have been revoked','Acesso negado pelo proprietário; sua participação pode ter sido removida');

@@ -1,6 +1,9 @@
 package localdb
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestTransactionsAndDeduplication(t *testing.T) {
 	d := t.TempDir()
@@ -64,5 +67,30 @@ func TestMessageContentCannotBeRewrittenAfterRestart(t *testing.T) {
 	rows, _ := d.Messages("peer")
 	if len(rows) != 1 || rows[0].Text != "original" {
 		t.Fatal(rows)
+	}
+}
+
+func TestUnsolicitedContactsCannotFillEntireAddressBook(t *testing.T) {
+	d, e := Open(t.TempDir())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer d.Close()
+	for i := 0; i < 16; i++ {
+		if e = d.Contact(Contact{ID: fmt.Sprint(i), Name: "new", Unsolicited: true}); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if e = d.Contact(Contact{ID: "overflow", Unsolicited: true}); e == nil {
+		t.Fatal("unsolicited slots unbounded")
+	}
+	if e = d.Contact(Contact{ID: "verified", Name: "Known"}); e != nil {
+		t.Fatal("verified contact slot exhausted", e)
+	}
+	if e = d.Contact(Contact{ID: "0", Name: "Now verified"}); e != nil {
+		t.Fatal(e)
+	}
+	if e = d.Contact(Contact{ID: "replacement", Unsolicited: true}); e != nil {
+		t.Fatal("verified contact did not free an unsolicited slot")
 	}
 }

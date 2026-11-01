@@ -138,6 +138,25 @@ func TestCommunitiesAuthenticatedRolesSyncAndRevocation(t *testing.T) {
 	if _, e = mod.CommunityAction(group, community.Remove, community.Body{Target: r.Owner}); e == nil {
 		t.Fatal("moderator removed owner")
 	}
+	// Rejoining must work both after a known revocation and before the replica
+	// has learned about a new revocation. It must not resurrect delegated roles.
+	fresh, _ := owner.CommunityInvite(group)
+	rejoined, e := member.JoinCommunity(fresh)
+	if e != nil || rejoined.Status != "participante" {
+		t.Fatal("rejoin failed", rejoined, e)
+	}
+	if _, e = owner.CommunityAction(group, community.Remove, community.Body{Target: memberState.Network.ID}); e != nil {
+		t.Fatal(e)
+	}
+	fresh, _ = owner.CommunityInvite(group)
+	rejoined, e = member.JoinCommunity(fresh)
+	if e != nil || rejoined.Status != "participante" {
+		t.Fatal("stale cached membership prevented fresh rejoin", rejoined, e)
+	}
+	restored, _ := member.CommunityState(group, channel, 0)
+	if restored.Community.Role != "member" || restored.Community.Denied {
+		t.Fatal("rejoin changed role or kept stale denial")
+	}
 }
 func TestCommunityOutboxSurvivesOwnerOutageAndRestart(t *testing.T) {
 	ownerDir := t.TempDir()

@@ -49,7 +49,7 @@ func main() {
 		return
 	}
 	dir, e := installwin.Folder()
-	if e == nil && !installwin.Message(fmt.Sprintf("Instalar Projeto P2P 0.4.1 em:\n%s\n\nFeche a versÃ£o anterior. O perfil existente serÃ¡ preservado. Nenhuma VPN serÃ¡ instalada. WebView2 serÃ¡ instalado se necessÃ¡rio (requer internet). Continuar?", dir), true) {
+	if e == nil && !installwin.Message(fmt.Sprintf("Instalar Projeto P2P 0.5.0 em:\n%s\n\nFeche a versÃ£o anterior. O perfil existente serÃ¡ preservado. Nenhuma VPN serÃ¡ instalada. WebView2 serÃ¡ instalado se necessÃ¡rio (requer internet). Continuar?", dir), true) {
 		return
 	}
 	desktop := false
@@ -64,5 +64,5 @@ func main() {
 		installwin.Message("InstalaÃ§Ã£o nÃ£o concluÃ­da: "+e.Error(), false)
 		os.Exit(1)
 	}
-	installwin.Message("Projeto P2P 0.4.1 instalado. Abra pelo menu Iniciar. Seus dados anteriores foram preservados.", false)
+	installwin.Message("Projeto P2P 0.5.0 instalado. Abra pelo menu Iniciar. Seus dados anteriores foram preservados.", false)
 }

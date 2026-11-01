@@ -164,6 +164,7 @@ type ConnectionTest struct {
 	RequiredMode    string             `json:"requiredMode,omitempty"`
 	Path            string             `json:"path"`
 	RTTMillis       int64              `json:"rttMillis"`
+	RTTMicros       int64              `json:"rttMicros"`
 	Message         string             `json:"message"`
 	Code            string             `json:"code"`
 	Mode            string             `json:"mode"`
@@ -250,6 +251,7 @@ func (c *Core) probeLocked(ctx context.Context, info peer.AddrInfo, r *Connectio
 		}
 		r.Connected = true
 		r.RTTMillis = value.RTT.Milliseconds()
+		r.RTTMicros = value.RTT.Microseconds()
 		r.Code = "connected"
 		r.Message = "Peer ID autenticado e ping libp2p recebido de " + r.RemoteAddress
 	case <-ctx.Done():

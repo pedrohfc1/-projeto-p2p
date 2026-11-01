@@ -156,6 +156,9 @@ func signedBy(id string, key, payload, signature []byte) error {
 	return nil
 }
 func SignOperation(key crypto.PrivKey, id, base, kind string, body Body) (Operation, error) {
+	if !bodyShape(kind, body) {
+		return Operation{}, errors.New("unexpected fields for operation kind")
+	}
 	if e := fieldBounds(body, base); e != nil {
 		return Operation{}, e
 	}
@@ -196,6 +199,9 @@ func VerifyOperation(o Operation) error {
 	case Create, Metadata, Archive, ChannelCreate, ChannelDelete, Join, SetRole, Remove, Leave, Text:
 	default:
 		return errors.New("unknown operation")
+	}
+	if !bodyShape(o.Kind, o.Body) {
+		return errors.New("unexpected fields for operation kind")
 	}
 	return signedBy(o.Author, o.PublicKey, o.payload(), o.Signature)
 }
@@ -359,4 +365,30 @@ func fieldBounds(b Body, base string) error {
 		return errors.New("invalid or oversized operation fields")
 	}
 	return nil
+}
+
+func bodyShape(kind string, b Body) bool {
+	allowed := Body{}
+	switch kind {
+	case Create:
+		allowed = Body{Name: b.Name, Description: b.Description, Icon: b.Icon, Nickname: b.Nickname}
+	case Metadata:
+		allowed = Body{Name: b.Name, Description: b.Description, Icon: b.Icon}
+	case ChannelCreate:
+		allowed = Body{Name: b.Name, ChannelID: b.ChannelID, ChannelKind: b.ChannelKind}
+	case ChannelDelete:
+		allowed = Body{ChannelID: b.ChannelID}
+	case Join:
+		allowed = Body{Name: b.Name, Invite: b.Invite}
+	case SetRole:
+		allowed = Body{Target: b.Target, Role: b.Role}
+	case Remove:
+		allowed = Body{Target: b.Target}
+	case Text:
+		allowed = Body{ChannelID: b.ChannelID, Text: b.Text}
+	case Archive, Leave:
+	default:
+		return false
+	}
+	return b == allowed
 }

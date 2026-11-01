@@ -21,11 +21,12 @@ type Settings struct {
 	Port        int      `json:"port"`
 }
 type Contact struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	Addresses []string `json:"addresses"`
-	PublicKey []byte   `json:"publicKey"`
-	Scope     string   `json:"scope,omitempty"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Addresses   []string `json:"addresses"`
+	PublicKey   []byte   `json:"publicKey"`
+	Scope       string   `json:"scope,omitempty"`
+	Unsolicited bool     `json:"unsolicited,omitempty"`
 }
 type Message struct {
 	ID    string `json:"id"`
@@ -76,6 +77,24 @@ func (d *DB) put(bucket, key string, v any) error {
 func (d *DB) Contact(c Contact) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("contacts"))
+		if c.Unsolicited && b.Get([]byte(c.ID)) == nil {
+			unknown := 0
+			if e := b.ForEach(func(k, v []byte) error {
+				var old Contact
+				if e := json.Unmarshal(v, &old); e != nil {
+					return e
+				}
+				if old.Unsolicited {
+					unknown++
+				}
+				return nil
+			}); e != nil {
+				return e
+			}
+			if unknown >= 16 {
+				return errors.New("new unsolicited contact limit reached; add a verified reciprocal invitation")
+			}
+		}
 		if b.Stats().KeyN >= 256 && b.Get([]byte(c.ID)) == nil {
 			return errors.New("limite de 256 contatos")
 		}

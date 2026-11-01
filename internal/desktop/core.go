@@ -158,7 +158,7 @@ func (c *Core) receiveScoped(m messaging.Message, scope string) error {
 		}
 	}
 	if !found {
-		if e = c.db.Contact(localdb.Contact{ID: m.From, Name: m.From[:12], Addresses: []string{}, Scope: scope}); e != nil {
+		if e = c.db.Contact(localdb.Contact{ID: m.From, Name: m.From[:12], Addresses: []string{}, Scope: scope, Unsolicited: true}); e != nil {
 			return e
 		}
 	}
@@ -225,7 +225,10 @@ func (c *Core) State(selected string) (State, error) {
 	s.Metrics.Streams = traffic.Streams
 	s.Metrics.LastConnectMs = traffic.LastConnectMs
 	if c.lastTest != nil && c.lastTest.Connected {
-		rtt := c.lastTest.RTTMillis
+		rtt := float64(c.lastTest.RTTMillis)
+		if c.lastTest.RTTMicros > 0 {
+			rtt = float64(c.lastTest.RTTMicros) / 1000
+		}
 		s.Metrics.PingMs = &rtt
 	}
 	s.Event = c.lastEvent

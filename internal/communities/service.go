@@ -287,11 +287,17 @@ func (s *Service) Join(ctx context.Context, raw string) (Receipt, error) {
 	}
 	if oldErr == nil && old.State.Role(s.id) != "" && !old.Denied {
 		e = s.Sync(ctx, record.ID)
-		result.Status = "participante"
-		if e != nil {
-			result.Message = e.Error()
+		if e == nil {
+			result.Status = "participante"
+			return result, nil
 		}
-		return result, nil
+		current, _ := s.db.Community(record.ID)
+		if !current.Denied {
+			result.Message = e.Error()
+			return result, nil
+		}
+		// Cached membership was revoked while offline. A fresh signed ticket may rejoin,
+		// but never treat the old cached role as a new authorization.
 	}
 	if ticket.Owner == s.id {
 		return result, errors.New("owner log missing; restore the community backup instead of trusting a new snapshot")
@@ -394,6 +400,9 @@ func (s *Service) Action(ctx context.Context, id, kind string, body community.Bo
 		if q.Operation.ID == op.ID && q.Status == "falhou" {
 			receipt.Status = q.Status
 			receipt.Message = q.Error
+			if kind != community.Text {
+				_ = s.db.CommunityPendingStatus(id, op.ID, "delete", "")
+			}
 		}
 	}
 	return receipt, nil

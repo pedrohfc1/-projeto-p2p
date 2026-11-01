@@ -20,7 +20,7 @@ import (
 )
 
 const Product = "ProjetoP2P"
-const Version = "0.4.1"
+const Version = "0.5.0"
 const uninstallKey = `Software\Microsoft\Windows\CurrentVersion\Uninstall\ProjetoP2PProjetoP2P`
 
 func Folder() (string, error) {

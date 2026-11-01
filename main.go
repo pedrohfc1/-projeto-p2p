@@ -5,10 +5,12 @@ import (
 	"embed"
 	"flag"
 	"fmt"
+	"path/filepath"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	winoptions "github.com/wailsapp/wails/v2/pkg/options/windows"
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"projetop2p/internal/communities"
 	"projetop2p/internal/community"
@@ -127,20 +129,25 @@ func main() {
 	version := flag.Bool("version", false, "Informar versão sem iniciar a janela ou o nó")
 	flag.Parse()
 	if *version {
-		fmt.Println("0.4.1")
+		fmt.Println("0.5.0")
+		return
+	}
+	dataDir := *dir
+	var resolveErr error
+	if dataDir == "" {
+		dataDir, resolveErr = desktop.DefaultDir()
+	} else {
+		dataDir, resolveErr = filepath.Abs(dataDir)
+	}
+	if resolveErr != nil {
+		fmt.Println(resolveErr)
 		return
 	}
 	app := &App{ready: make(chan struct{})}
-	err := wails.Run(&options.App{Title: "Projeto P2P", Width: 1180, Height: 790, MinWidth: 900, MinHeight: 640, BackgroundColour: options.NewRGB(15, 18, 29), AssetServer: &assetserver.Options{Assets: assets}, OnStartup: func(ctx context.Context) {
+	err := wails.Run(&options.App{Title: "Projeto P2P", Width: 1180, Height: 790, MinWidth: 760, MinHeight: 600, BackgroundColour: options.NewRGB(15, 18, 29), DragAndDrop: &options.DragAndDrop{DisableWebViewDrop: true, EnableFileDrop: false}, AssetServer: &assetserver.Options{Assets: assets}, Windows: &winoptions.Options{WebviewUserDataPath: filepath.Join(dataDir, "cache", "webview2")}, OnStartup: func(ctx context.Context) {
 		app.ctx = ctx
-		d := *dir
 		var e error
-		if d == "" {
-			d, e = desktop.DefaultDir()
-		}
-		if e == nil {
-			app.core, e = desktop.Open(ctx, d)
-		}
+		app.core, e = desktop.Open(ctx, dataDir)
 		app.err = e
 		close(app.ready)
 	}, OnShutdown: func(context.Context) {

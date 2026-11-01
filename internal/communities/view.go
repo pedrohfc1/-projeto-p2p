@@ -40,7 +40,11 @@ type View struct {
 }
 
 func (s *Service) summary(r localdb.CommunityRecord) Summary {
-	v := Summary{ID: r.ID, Name: r.Name, Description: r.State.Description, Icon: r.State.Icon, Owner: r.Owner, Role: r.State.Role(s.id), Scope: r.Scope, Sequence: r.State.Sequence, Head: r.State.Head, Archived: r.State.Archived, Denied: r.Denied, LastSync: r.LastSync, Error: r.LastError, Members: []community.Member{}, Channels: []community.Channel{}}
+	scope := r.Scope
+	if r.Owner == s.id {
+		_, scope = s.environment()
+	}
+	v := Summary{ID: r.ID, Name: r.Name, Description: r.State.Description, Icon: r.State.Icon, Owner: r.Owner, Role: r.State.Role(s.id), Scope: scope, Sequence: r.State.Sequence, Head: r.State.Head, Archived: r.State.Archived, Denied: r.Denied, LastSync: r.LastSync, Error: r.LastError, Members: []community.Member{}, Channels: []community.Channel{}}
 	for _, m := range r.State.Members {
 		v.Members = append(v.Members, m)
 	}

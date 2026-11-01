@@ -15,6 +15,9 @@ func (d *DB) SchemaVersion() (uint64, error) {
 	e := d.db.View(func(tx *bolt.Tx) error {
 		if b := tx.Bucket([]byte("schema")); b != nil {
 			v := b.Get([]byte("version"))
+			if v != nil && len(v) != 8 {
+				return errors.New("corrupt schema version; database preserved")
+			}
 			if len(v) == 8 {
 				version = binary.BigEndian.Uint64(v)
 			}
@@ -33,7 +36,11 @@ func (d *DB) MigrateTo(target uint64) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		version := uint64(1)
 		if b := tx.Bucket([]byte("schema")); b != nil {
-			if v := b.Get([]byte("version")); len(v) == 8 {
+			v := b.Get([]byte("version"))
+			if v != nil && len(v) != 8 {
+				return errors.New("corrupt schema version; database preserved")
+			}
+			if len(v) == 8 {
 				version = binary.BigEndian.Uint64(v)
 			}
 		}
