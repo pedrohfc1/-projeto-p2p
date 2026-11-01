@@ -76,6 +76,7 @@ def main():
             dead = '/ip4/127.0.0.1/tcp/1/p2p/' + a.id
             b = Node(binary, root / 'b', [dead, a.addr]); nodes.append(b)
             c = Node(binary, root / 'c', [a.addr]); nodes.append(c)
+            if '--legacy-dht' not in sys.argv[2:]:b.command('/connect '+c.addr)
             b.wait('Conectado: ' + c.id)
             b.command('/send ' + c.id + ' process-message-1')
             c.wait('process-message-1')
@@ -94,7 +95,7 @@ def main():
             c.command('/send ' + b.id + ' recovered-new-address')
             b.wait('recovered-new-address')
             c.wait('Recebimento confirmado')
-            print('PASS: three processes, DHT, signed text, bootstrap fallback/outage, crash, identity reuse, changed address and recovery')
+            print('PASS: three processes, '+('legacy DHT discovery' if '--legacy-dht' in sys.argv[2:] else 'explicit invite connection (provider DHT quarantined)')+', signed text, bootstrap fallback/outage, crash, identity reuse, changed address and recovery')
             for n in nodes:
                 n.kill()
     finally:

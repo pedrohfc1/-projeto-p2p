@@ -54,6 +54,7 @@ type Status struct {
 	Reachability   string              `json:"reachability"`
 	RelayAddresses int                 `json:"relayAddresses"`
 	RelayService   *RelayServiceStatus `json:"relayService,omitempty"`
+	DHTEnabled     bool                `json:"dhtEnabled"`
 	DHTPeers       int                 `json:"dhtPeers"`
 	LocalOnly      bool                `json:"localOnly"`
 }
@@ -61,8 +62,9 @@ type Status struct {
 func (n *Node) Status() Status {
 	s := Status{ID: n.Host.ID().String(), Addresses: n.Addresses(), Peers: []PeerStatus{}}
 	if n.DHT != nil {
-		s.DHTPeers = n.DHT.RoutingTable().Size()
+		s.DHTPeers = n.DHT.PeerCount()
 	}
+	s.DHTEnabled = DHTEnabled && n.DHT != nil
 	s.LocalOnly = n.localOnly
 	if n.relayMetrics != nil {
 		s.RelayService = n.relayMetrics.snapshot()

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	libp2p "github.com/libp2p/go-libp2p"
-	dht "github.com/libp2p/go-libp2p-kad-dht"
 	corecm "github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -58,7 +57,7 @@ type Config struct {
 }
 type Node struct {
 	Host              host.Host
-	DHT               *dht.IpfsDHT
+	DHT               dhtService
 	Messages          chan messaging.Message
 	Events            chan string
 	ctx               context.Context
@@ -219,13 +218,9 @@ func New(parent context.Context, c Config) (*Node, error) {
 		boot = append(boot, p)
 	}
 	boot = append(boot, relays...)
-	var kd *dht.IpfsDHT
+	var kd dhtService
 	if !c.LocalOnly {
-		dopts := []dht.Option{dht.Mode(dht.ModeServer), dht.ProtocolPrefix("/projeto-p2p"), dht.BootstrapPeers(boot...), dht.DisableValues()}
-		if c.PublicDiscovery {
-			dopts = append(dopts, dht.AddressFilter(publicAddresses))
-		}
-		kd, err = dht.New(h, dopts...)
+		kd, err = newDHT(ctx, h, c, boot)
 	}
 	if err != nil {
 		cancel()
@@ -397,7 +392,7 @@ func (n *Node) run(interval time.Duration) {
 				delete(retries, p.ID)
 			}
 		}
-		if !n.localOnly {
+		if n.DHT != nil {
 			ctx, cancel := context.WithTimeout(n.ctx, 5*time.Second)
 			rd := routing.NewRoutingDiscovery(n.DHT)
 			if n.relayServer {

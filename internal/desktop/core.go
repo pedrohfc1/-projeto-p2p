@@ -235,6 +235,9 @@ func (c *Core) State(selected string) (State, error) {
 		}
 		s.Metrics.PingMs = &rtt
 	}
+	if !network.DHTEnabled && mode(s.Settings) == "auto" {
+		s.Notice = "DHT provider em quarentena no beta por GO-2024-3218; use convites, bootstraps e relays explícitos."
+	}
 	s.Event = c.lastEvent
 	contacts, e := c.db.Contacts()
 	if e != nil {
@@ -267,6 +270,9 @@ func (c *Core) State(selected string) (State, error) {
 		if len(s.Network.Peers) > 0 {
 			s.Notice = "Peer P2P conectado pela interface selecionada. A VPN pode usar retransmissão própria."
 		}
+	}
+	if !network.DHTEnabled && mode(s.Settings) == "auto" {
+		s.Notice += " DHT provider desativada neste beta por segurança."
 	}
 	return s, e
 }

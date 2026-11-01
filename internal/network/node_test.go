@@ -114,6 +114,9 @@ func create(t *testing.T, c Config) *Node {
 	return n
 }
 func TestThreeNodesDiscoveryRecovery(t *testing.T) {
+	if !DHTEnabled {
+		t.Skip("provider DHT quarantined in beta; exercised by -tags legacydht")
+	}
 	cfg := func() Config {
 		return Config{DataDir: t.TempDir(), Listen: []string{"/ip4/127.0.0.1/tcp/0"}, Interval: time.Second}
 	}

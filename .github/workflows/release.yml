@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       tag: ${{ steps.version.outputs.tag }}
+      public_allowed: ${{ steps.version.outputs.public_allowed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -30,6 +31,7 @@ jobs:
             python3 scripts/check-version.py
           fi
           echo "tag=v$(cat VERSION)" >> "$GITHUB_OUTPUT"
+          if [ -f PRIVATE_BETA_ONLY ]; then echo "public_allowed=false" >> "$GITHUB_OUTPUT"; else echo "public_allowed=true" >> "$GITHUB_OUTPUT"; fi
   validate-and-build:
     needs: version
     uses: ./.github/workflows/ci.yml
@@ -68,7 +70,7 @@ jobs:
           retention-days: 14
   publish:
     # Dispatch only builds artifacts. Only a tag push may publish.
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.validate-and-build.result == 'success'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.validate-and-build.result == 'success' && needs.version.outputs.public_allowed == 'true'
     needs: [version, assemble, validate-and-build]
     runs-on: ubuntu-24.04
     environment: github-release

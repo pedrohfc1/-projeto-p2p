@@ -67,6 +67,7 @@ jobs:
           go mod verify
           go test ./... -count=1 -timeout=180s
           go vet ./...
+          go test -tags legacydht ./internal/network -count=1 -timeout=180s
       - name: Race detector
         if: runner.os == 'Linux'
         run: |

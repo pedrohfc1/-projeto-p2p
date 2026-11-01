@@ -53,7 +53,9 @@ func TestRelayDeliveryAndFailover(t *testing.T) {
 	cb.DataDir = t.TempDir()
 	cb.ConnectionGater = gb
 	// B has only bootstrap addresses: relay candidates must be found via DHT.
-	cb.Relays = nil
+	if DHTEnabled {
+		cb.Relays = nil
+	} // Beta uses explicit authenticated infrastructure, not provider discovery.
 	cb.Bootstrap = seeds
 	a := create(t, ca)
 	defer a.Close()
