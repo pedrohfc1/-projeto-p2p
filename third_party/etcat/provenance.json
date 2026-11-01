@@ -1,6 +1,6 @@
 {
-  "version": "etcat-0.1.0-p2p-beta",
-  "sha256": "472df99fa0d9d365957b84c548a8228a655de6984d67e971654fe893c3626d10",
+  "version": "etcat-0.1.0-p2p-voice-beta",
+  "sha256": "d25540cadfb76697c53a44a9d981fc36e5e56eed09dffef0f4a86c6ff4674a32",
   "upnpDisabled": true,
   "upstreamCommit": "ccb45cd84c20b2aa1e6615a3f62a83827e961695",
   "etcatCommit": "ccb45cd84c20b2aa1e6615a3f62a83827e961695",
@@ -12,5 +12,6 @@
   "tun": false,
   "faketcp": false,
   "windivert": false,
-  "zstd": false
+  "zstd": false,
+  "userspaceUDPPortForward": true
 }

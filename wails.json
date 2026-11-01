@@ -7,5 +7,5 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {"name": "Projeto P2P", "email": ""},
-  "info": {"companyName":"ProjetoP2P","productName":"ProjetoP2P","productVersion":"0.5.2","copyright":"Projeto P2P","comments":"Mensageiro descentralizado"}
+  "info": {"companyName":"ProjetoP2P","productName":"ProjetoP2P","productVersion":"0.6.0","copyright":"Projeto P2P","comments":"Mensageiro descentralizado"}
 }

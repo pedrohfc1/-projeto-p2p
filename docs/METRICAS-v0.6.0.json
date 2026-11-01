@@ -1,0 +1,79 @@
+{
+  "version": "0.6.0",
+  "date": "2026-11-01",
+  "scope": "two independent production backend processes, synthetic Opus DTX, same Windows PC; excludes real microphones, WebView2 and external helper CPU from backend metrics",
+  "connectionSeconds": 8.4561751,
+  "framesSentEachDirection": 50,
+  "framesReceivedEachDirection": 50,
+  "rtp": {
+    "a": {
+      "jitterMs": 0.46958528532732846,
+      "packetsLost": 0,
+      "roundTripMs": null,
+      "state": "connected",
+      "packetsIn": 50,
+      "packetsOut": 50,
+      "bytesIn": 750,
+      "bytesOut": 750
+    },
+    "b": {
+      "jitterMs": 0.4749563118968082,
+      "packetsLost": 0,
+      "roundTripMs": null,
+      "state": "connected",
+      "packetsIn": 50,
+      "packetsOut": 50,
+      "bytesIn": 750,
+      "bytesOut": 750
+    }
+  },
+  "backend": [
+    {
+      "connections": 1,
+      "cpuPercent": 4.579929724972069,
+      "cpuSecs": 0.671875,
+      "downloadBps": 56.86440746525321,
+      "downloadBytes": 16638,
+      "goroutines": 81,
+      "heapBytes": 2675744,
+      "lastConnectMs": null,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "pingMs": null,
+      "rssBytes": 44093440,
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico",
+      "streams": 0,
+      "uploadBps": 102.00419483457792,
+      "uploadBytes": 20020
+    },
+    {
+      "connections": 1,
+      "cpuPercent": 2.74078217216357,
+      "cpuSecs": 0.5625,
+      "downloadBps": 101.73783423071171,
+      "downloadBytes": 20020,
+      "goroutines": 85,
+      "heapBytes": 2605952,
+      "lastConnectMs": 8410.169,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "pingMs": null,
+      "rssBytes": 44310528,
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico",
+      "streams": 0,
+      "uploadBps": 56.71591908263814,
+      "uploadBytes": 16638
+    }
+  ],
+  "mediaRecoverySeconds": 24.6918149,
+  "udpEcho": {
+    "frames": 50,
+    "payloadBytes": 160,
+    "lost": 0,
+    "meanRttMs": 7.188456,
+    "rttJitterMs": 1.176843,
+    "setupSeconds": 6.627664,
+    "outerTransportVerified": false
+  },
+  "realVoiceCpuAndBitrate": "not measured; DTX is not representative of speech; RTP bytes exclude SRTP/ICE/EasyTier/link overhead"
+}

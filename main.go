@@ -5,10 +5,12 @@ import (
 	"embed"
 	"flag"
 	"fmt"
+	"net/http"
 	"path/filepath"
 	"projetop2p/internal/invite"
 	"strings"
 
+	"github.com/pion/webrtc/v4"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -18,6 +20,7 @@ import (
 	"projetop2p/internal/community"
 	"projetop2p/internal/desktop"
 	"projetop2p/internal/localdb"
+	"projetop2p/internal/voice"
 )
 
 //go:embed all:frontend/dist
@@ -141,7 +144,7 @@ func main() {
 	version := flag.Bool("version", false, "Informar versão sem iniciar a janela ou o nó")
 	flag.Parse()
 	if *version {
-		fmt.Println("0.5.2")
+		fmt.Println("0.6.0")
 		return
 	}
 	dataDir := *dir
@@ -156,7 +159,12 @@ func main() {
 		return
 	}
 	app := &App{ready: make(chan struct{})}
-	err := wails.Run(&options.App{Title: "Projeto P2P", Width: 1180, Height: 790, MinWidth: 760, MinHeight: 600, BackgroundColour: options.NewRGB(15, 18, 29), DragAndDrop: &options.DragAndDrop{DisableWebViewDrop: true, EnableFileDrop: false}, AssetServer: &assetserver.Options{Assets: assets}, Windows: &winoptions.Options{WebviewUserDataPath: filepath.Join(dataDir, "cache", "webview2")}, OnStartup: func(ctx context.Context) {
+	err := wails.Run(&options.App{Title: "Projeto P2P", Width: 1180, Height: 790, MinWidth: 760, MinHeight: 600, BackgroundColour: options.NewRGB(15, 18, 29), DragAndDrop: &options.DragAndDrop{DisableWebViewDrop: true, EnableFileDrop: false}, AssetServer: &assetserver.Options{Assets: assets, Middleware: func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Permissions-Policy", "microphone=(self), camera=(), display-capture=(), geolocation=()")
+			next.ServeHTTP(w, r)
+		})
+	}}, Windows: &winoptions.Options{WebviewUserDataPath: filepath.Join(dataDir, "cache", "webview2")}, OnStartup: func(ctx context.Context) {
 		app.ctx = ctx
 		var e error
 		app.core, e = desktop.Open(ctx, dataDir)
@@ -171,4 +179,45 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
+}
+
+func (a *App) CommunityInvitePolicy(id string, options community.InviteOptions) (string, error) {
+	if err := a.initialized(); err != nil {
+		return "", err
+	}
+	return a.core.CommunityInvitePolicy(id, options)
+}
+
+func (a *App) CommunityInviteStatus(id, raw string) (community.InvitationStatus, error) {
+	if err := a.initialized(); err != nil {
+		return community.InvitationStatus{}, err
+	}
+	return a.core.CommunityInviteStatus(id, raw)
+}
+
+func (a *App) VoiceJoin(group, channel string, offer webrtc.SessionDescription) (webrtc.SessionDescription, error) {
+	if e := a.initialized(); e != nil {
+		return webrtc.SessionDescription{}, e
+	}
+	return a.core.VoiceJoin(group, channel, offer)
+}
+func (a *App) VoiceState() (voice.View, error) {
+	if e := a.initialized(); e != nil {
+		return voice.View{}, e
+	}
+	return a.core.VoiceState(), nil
+}
+func (a *App) VoiceLeave() error {
+	if e := a.initialized(); e != nil {
+		return e
+	}
+	a.core.VoiceLeave()
+	return nil
+}
+func (a *App) VoiceControls(muted, deaf bool) error {
+	if e := a.initialized(); e != nil {
+		return e
+	}
+	a.core.VoiceControls(muted, deaf)
+	return nil
 }

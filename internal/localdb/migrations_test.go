@@ -37,14 +37,14 @@ func TestLegacyMigrationAndSafeDowngrade(t *testing.T) {
 	defer d.Close()
 	v, _ := d.SchemaVersion()
 	s, _ := d.Settings()
-	if v != 2 || s.Name != "Original" || s.Mode != "radmin" || s.InterfaceID != "stable-guid" {
+	if v != CurrentSchema || s.Name != "Original" || s.Mode != "radmin" || s.InterfaceID != "stable-guid" {
 		t.Fatal("migration lost settings", s, v)
 	}
-	if e = d.MigrateTo(1); e != nil {
-		t.Fatal(e)
+	if e = d.MigrateTo(1); e == nil {
+		t.Fatal("v0.6 downgrade allowed")
 	}
-	if e = d.MigrateTo(2); e != nil {
-		t.Fatal(e)
+	if e = d.MigrateTo(2); e == nil {
+		t.Fatal("policy downgrade allowed")
 	}
 	k, _, _ := crypto.GenerateEd25519Key(rand.Reader)
 	op, _ := community.SignOperation(k, "", "", community.Create, community.Body{Name: "Group"})
@@ -97,4 +97,46 @@ func TestFutureSchemaRejectedWithoutCreatingBuckets(t *testing.T) {
 		}
 		return nil
 	})
+}
+
+func TestSchemaTwoBackfillsVerifiedControlPrefixIndex(t *testing.T) {
+	dir := t.TempDir()
+	d, e := Open(dir)
+	if e != nil {
+		t.Fatal(e)
+	}
+	key, _, _ := crypto.GenerateEd25519Key(rand.Reader)
+	op, _ := community.SignOperation(key, "", "", community.Create, community.Body{Name: "Legacy schema two"})
+	commit, state, e := community.MakeCommit(key, community.State{}, op)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = d.CreateOwnedCommunity(CommunityRecord{ID: state.ID, Owner: state.Owner, Root: state.Root, Name: state.Name}, commit); e != nil {
+		t.Fatal(e)
+	}
+	if e = d.db.Update(func(tx *bolt.Tx) error {
+		if e := tx.DeleteBucket([]byte("community_heads")); e != nil {
+			return e
+		}
+		return tx.Bucket([]byte("schema")).Put([]byte("version"), seqkey(2))
+	}); e != nil {
+		t.Fatal(e)
+	}
+	d.Close()
+	d, e = Open(dir)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer d.Close()
+	_ = d.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("community_heads")).Bucket([]byte(state.ID))
+		if b == nil || binary.BigEndian.Uint64(b.Get([]byte(state.Head))) != 1 {
+			t.Fatal("legacy prefix index absent")
+		}
+		return nil
+	})
+	record, e := d.Community(state.ID)
+	if e != nil || record.Root != state.Root || record.State.Head != state.Head {
+		t.Fatal("migration changed signed history", record, e)
+	}
 }

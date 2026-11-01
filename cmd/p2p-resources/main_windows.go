@@ -21,7 +21,7 @@ func main() {
 	if h == 0 {
 		panic(e)
 	}
-	manifest := []byte(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"><assemblyIdentity version="0.5.2.0" processorArchitecture="amd64" name="ProjetoP2P.Setup" type="win32"/><trustInfo xmlns="urn:schemas-microsoft-com:asm.v3"><security><requestedPrivileges><requestedExecutionLevel level="asInvoker" uiAccess="false"/></requestedPrivileges></security></trustInfo></assembly>`)
+	manifest := []byte(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"><assemblyIdentity version="0.6.0.0" processorArchitecture="amd64" name="ProjetoP2P.Setup" type="win32"/><trustInfo xmlns="urn:schemas-microsoft-com:asm.v3"><security><requestedPrivileges><requestedExecutionLevel level="asInvoker" uiAccess="false"/></requestedPrivileges></security></trustInfo></assembly>`)
 	ok, _, e := dll.NewProc("UpdateResourceW").Call(h, 24, 1, 0, uintptr(unsafe.Pointer(&manifest[0])), uintptr(len(manifest)))
 	if ok == 0 {
 		dll.NewProc("EndUpdateResourceW").Call(h, 1)

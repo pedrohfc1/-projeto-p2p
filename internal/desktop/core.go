@@ -25,9 +25,11 @@ import (
 	"projetop2p/internal/overlay"
 	"projetop2p/internal/telemetry"
 	"projetop2p/internal/transportaddr"
+	"projetop2p/internal/voice"
 )
 
 type Core struct {
+	voice *voice.Service
 	legacyLabState
 	integrated *overlay.Manager
 	mu         sync.Mutex
@@ -143,8 +145,18 @@ func (c *Core) start(s localdb.Settings) error {
 		}
 		return e
 	}
+	v, e := c.startVoice(n, s)
+	if e != nil {
+		n.Close()
+		if c.integrated != nil {
+			c.integrated.Close()
+			c.integrated = nil
+		}
+		return e
+	}
 	if c.integrated != nil {
-		if e = c.integrated.Start(c.ctx, port(s)); e != nil {
+		if e = c.integrated.Start(c.ctx, port(s), v.Port()); e != nil {
+			v.Close()
 			c.integrated.Close()
 			c.integrated = nil
 			n.Close()
@@ -152,10 +164,14 @@ func (c *Core) start(s localdb.Settings) error {
 		}
 	}
 	c.node = n
+	c.voice = v
+	n.SetVoiceHandler(v.Handle)
 	n.SetCommunityHandler(c.groups.Handle)
 	c.groups.Attach(n, mode(s))
 	contacts, e := c.db.Contacts()
 	if e != nil {
+		v.Close()
+		c.voice = nil
 		n.Close()
 		c.node = nil
 		return e

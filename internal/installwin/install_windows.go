@@ -20,7 +20,7 @@ import (
 )
 
 const Product = "ProjetoP2P"
-const Version = "0.5.2"
+const Version = "0.6.0"
 const uninstallKey = `Software\Microsoft\Windows\CurrentVersion\Uninstall\ProjetoP2PProjetoP2P`
 
 func Folder() (string, error) {
@@ -36,7 +36,7 @@ func Message(text string, question bool) bool {
 		flags = 0x24
 	}
 	t, _ := windows.UTF16PtrFromString(text)
-	title, _ := windows.UTF16PtrFromString("Projeto P2P — Instalação 0.5.2")
+	title, _ := windows.UTF16PtrFromString("Projeto P2P — Instalação 0.6.0")
 	result, _, _ := windows.NewLazySystemDLL("user32.dll").NewProc("MessageBoxW").Call(0, uintptr(unsafe.Pointer(t)), uintptr(unsafe.Pointer(title)), flags)
 	return !question || result == 6
 }

@@ -90,6 +90,17 @@ func (s *Service) View(id, channel string, before uint64) (View, error) {
 		v.Messages = append(v.Messages, MessageView{ID: m.ID, Sequence: c.Sequence, Author: m.Author, Name: name, Text: m.Body.Text, Time: c.At, Status: status})
 	}
 	v.HasMore = len(events) == 100
+	if r.State.MemberLimit > 0 {
+		messages, err := s.db.PeerTextHistory(id, channel, before)
+		if err != nil {
+			return v, err
+		}
+		for _, entry := range messages {
+			m := entry.Message.Operation
+			v.Messages = append(v.Messages, MessageView{ID: m.ID, Sequence: entry.Sequence, Author: m.Author, Name: r.State.Members[m.Author].Name, Text: m.Body.Text, Time: m.Issued, Status: "assinada pelo autor"})
+		}
+		v.HasMore = len(messages) == 100
+	}
 	if before == 0 {
 		pending, e := s.db.CommunityPending(id)
 		if e != nil {

@@ -42,3 +42,15 @@ func (c *Core) communityTimeout() time.Duration {
 	}
 	return 10 * time.Second
 }
+
+func (c *Core) CommunityInvitePolicy(id string, options community.InviteOptions) (string, error) {
+	ctx, cancel := context.WithTimeout(c.ctx, c.communityTimeout())
+	defer cancel()
+	return c.groups.InvitePolicy(ctx, id, &options)
+}
+
+func (c *Core) CommunityInviteStatus(id, raw string) (community.InvitationStatus, error) {
+	ctx, cancel := context.WithTimeout(c.ctx, c.communityTimeout())
+	defer cancel()
+	return c.groups.InviteStatus(ctx, id, raw)
+}

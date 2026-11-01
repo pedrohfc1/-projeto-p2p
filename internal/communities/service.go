@@ -23,6 +23,9 @@ type Transport interface {
 	CommunityRequest(context.Context, string, []string, community.Request) (community.Response, error)
 }
 type Service struct {
+	peerMu    sync.Mutex
+	routes    map[string]map[string]peerRoute
+	cursors   map[string]uint64
 	db        *localdb.DB
 	key       crypto.PrivKey
 	id        string
@@ -41,13 +44,15 @@ type Receipt struct {
 	Status       string `json:"status"`
 	Message      string `json:"message"`
 	RequiredMode string `json:"requiredMode,omitempty"`
+	Code         string `json:"code,omitempty"`
 }
 
 func New(ctx context.Context, db *localdb.DB, key crypto.PrivKey) *Service {
 	id, _ := peer.IDFromPrivateKey(key)
 	ctx, cancel := context.WithCancel(ctx)
-	s := &Service{db: db, key: key, id: id.String(), scope: "auto", syncSlot: make(chan struct{}, 1), ctx: ctx, cancel: cancel}
-	s.wg.Add(1)
+	s := &Service{routes: map[string]map[string]peerRoute{}, cursors: map[string]uint64{}, db: db, key: key, id: id.String(), scope: "auto", syncSlot: make(chan struct{}, 1), ctx: ctx, cancel: cancel}
+	s.wg.Add(2)
+	go s.peerWatch()
 	go s.watch()
 	return s
 }
@@ -100,7 +105,7 @@ func (s *Service) Create(name, description, icon string) (string, error) {
 	if e != nil {
 		return "", e
 	}
-	o, e := community.SignOperation(s.key, "", "", community.Create, community.Body{Name: strings.TrimSpace(name), Description: description, Icon: icon, Nickname: settings.Name})
+	o, e := community.SignOperation(s.key, "", "", community.Create, community.Body{Name: strings.TrimSpace(name), Description: description, Icon: icon, Nickname: settings.Name, Limit: 100})
 	if e != nil {
 		return "", e
 	}
@@ -140,7 +145,7 @@ func (s *Service) ownerSubmit(remote string, o community.Operation) community.Re
 	}
 	c, _, e := community.MakeCommit(s.key, r.State, o)
 	if e != nil {
-		code := "rejected"
+		code := failureCode(e.Error())
 		if strings.Contains(e.Error(), "conflict:") {
 			code = "conflict"
 		}
@@ -157,6 +162,9 @@ func (s *Service) Handle(ctx context.Context, remote string, req community.Reque
 	}
 	if !community.ValidID(req.CommunityID) {
 		return errorResponse("invalid", "invalid community ID")
+	}
+	if req.Method == "peer.directory" || req.Method == "peer.text" || req.Method == "peer.sync" {
+		return s.peerHandle(remote, req)
 	}
 	if req.Method == "submit" {
 		if req.Operation == nil || req.Operation.CommunityID != req.CommunityID {
@@ -175,6 +183,33 @@ func (s *Service) Handle(ctx context.Context, remote string, req community.Reque
 		return errorResponse("forbidden", "current membership required; access may have been revoked")
 	}
 	switch req.Method {
+	case "invite.status":
+		if !r.State.Manages(remote) {
+			return errorResponse("forbidden", "moderator or owner role required")
+		}
+		ticket, e := community.ParseInvite(req.InviteToken, time.Now())
+		if e != nil {
+			return errorResponse("invalid", e.Error())
+		}
+		if ticket.CommunityID != r.ID || ticket.Root != r.Root {
+			return errorResponse("invalid", "invitation belongs to another community")
+		}
+		used := r.State.InviteCounts[ticket.Nonce]
+		if used == 0 && r.State.InviteUses[ticket.Nonce] != "" {
+			used = 1
+		}
+		limit := ticket.MaxUses
+		if ticket.Policy == "" || ticket.Policy == "single" {
+			limit = 1
+		}
+		left := int64(-1)
+		if limit > 0 {
+			left = int64(limit) - int64(used)
+			if left < 0 {
+				left = 0
+			}
+		}
+		return community.Response{InvitationStatus: &community.InvitationStatus{Nonce: ticket.Nonce, Used: used, Remaining: left, Revoked: r.State.RevokedInvites[ticket.Nonce] || ticket.Epoch != r.State.InviteEpoch, Sequence: r.State.Sequence}, Commits: []community.Commit{}}
 	case "invite":
 		if !r.State.Manages(remote) {
 			return errorResponse("forbidden", "owner or moderator role required")
@@ -183,7 +218,13 @@ func (s *Service) Handle(ctx context.Context, remote string, req community.Reque
 		if t == nil {
 			return errorResponse("offline", "network unavailable")
 		}
-		raw, e := community.NewInvite(s.key, r.State, scope, t.Addresses(), invitationRoute(t))
+		var raw string
+		var e error
+		if req.InviteOptions == nil {
+			raw, e = community.NewInvite(s.key, r.State, scope, t.Addresses(), invitationRoute(t))
+		} else {
+			raw, e = community.NewPolicyInvite(s.key, r.State, scope, t.Addresses(), *req.InviteOptions, invitationRoute(t))
+		}
 		if e != nil {
 			return errorResponse("invalid", e.Error())
 		}
@@ -222,7 +263,7 @@ func (s *Service) Handle(ctx context.Context, remote string, req community.Reque
 func (s *Service) request(ctx context.Context, r localdb.CommunityRecord, req community.Request) (community.Response, error) {
 	t, scope := s.environment()
 	if t == nil {
-		return community.Response{}, errors.New("rede indisponível; operação permanece pendente")
+		return community.Response{}, errors.New("connectivity_failure: rede indisponível; operação preservada para nova tentativa")
 	}
 	if r.Scope != "" && r.Scope != scope && scope != "interface" {
 		return community.Response{}, fmt.Errorf("ative o modo %s usado pelo proprietário", r.Scope)
@@ -235,11 +276,18 @@ func (s *Service) request(ctx context.Context, r localdb.CommunityRecord, req co
 		}
 	}
 	if len(addresses) == 0 {
-		return community.Response{}, errors.New("sem endereço compatível do proprietário; obtenha convite atualizado")
+		return community.Response{}, errors.New("owner_unavailable: sem endereço compatível do proprietário; obtenha convite atualizado")
 	}
-	return t.CommunityRequest(ctx, r.Owner, addresses, req)
+	res, err := t.CommunityRequest(ctx, r.Owner, addresses, req)
+	if err != nil {
+		return res, fmt.Errorf("owner_unavailable: não foi possível contatar o proprietário: %w", err)
+	}
+	return res, nil
 }
 func (s *Service) Invite(ctx context.Context, id string) (string, error) {
+	return s.InvitePolicy(ctx, id, nil)
+}
+func (s *Service) InvitePolicy(ctx context.Context, id string, options *community.InviteOptions) (string, error) {
 	r, e := s.db.Community(id)
 	if e != nil {
 		return "", e
@@ -248,13 +296,13 @@ func (s *Service) Invite(ctx context.Context, id string) (string, error) {
 		return "", errors.New("somente proprietário/moderador pode criar convites")
 	}
 	if r.Owner == s.id {
-		res := s.Handle(ctx, s.id, community.Request{Method: "invite", CommunityID: id})
+		res := s.Handle(ctx, s.id, community.Request{Method: "invite", CommunityID: id, InviteOptions: options})
 		if res.Error != "" {
 			return "", errors.New(res.Error)
 		}
 		return res.Invite, nil
 	}
-	res, e := s.request(ctx, r, community.Request{Method: "invite", CommunityID: id})
+	res, e := s.request(ctx, r, community.Request{Method: "invite", CommunityID: id, InviteOptions: options})
 	if e != nil {
 		return "", e
 	}
@@ -309,6 +357,8 @@ func (s *Service) Join(ctx context.Context, raw string) (Receipt, error) {
 		current, _ := s.db.Community(record.ID)
 		if !current.Denied {
 			result.Message = e.Error()
+			result.Code = failureCode(e.Error())
+			result.Status = "falhou"
 			return result, nil
 		}
 		// Cached membership was revoked while offline. A fresh signed ticket may rejoin,
@@ -336,11 +386,14 @@ func (s *Service) Join(ctx context.Context, raw string) (Receipt, error) {
 	}
 	if e = s.Sync(ctx, record.ID); e != nil {
 		result.Message = e.Error()
+		result.Code = failureCode(e.Error())
+		result.Status = "falhou"
 		pending, _ := s.db.CommunityPending(record.ID)
 		for _, q := range pending {
 			if q.Operation.ID == op.ID && q.Status == "falhou" {
 				result.Status = "falhou"
 				result.Message = q.Error
+				result.Code = failureCode(q.Error)
 			}
 		}
 		return result, nil
@@ -348,6 +401,9 @@ func (s *Service) Join(ctx context.Context, raw string) (Receipt, error) {
 	latest, _ := s.db.Community(record.ID)
 	if latest.State.Role(s.id) != "" {
 		result.Status = "participante"
+		if latest.State.MemberLimit > 0 {
+			_ = s.DiscoverPeers(ctx, record.ID)
+		}
 		return result, nil
 	}
 	result.Message = "Ingresso aguardando confirmação assinada do proprietário"
@@ -367,7 +423,7 @@ func (s *Service) Action(ctx context.Context, id, kind string, body community.Bo
 		if strings.TrimSpace(body.Text) == "" {
 			return Receipt{}, errors.New("mensagem vazia")
 		}
-	case community.ChannelCreate, community.ChannelDelete, community.Remove:
+	case community.ChannelCreate, community.ChannelDelete, community.ChannelUpdate, community.InviteRevoke, community.Remove:
 		if !r.State.Manages(s.id) {
 			return Receipt{}, errors.New("moderator or owner role required")
 		}
@@ -390,6 +446,9 @@ func (s *Service) Action(ctx context.Context, id, kind string, body community.Bo
 	}
 	if kind == community.Remove && role == "moderator" && r.State.Members[body.Target].Role != "member" {
 		return Receipt{}, errors.New("moderators may only remove ordinary members")
+	}
+	if kind == community.Text && r.State.MemberLimit > 0 {
+		return s.postPeerText(ctx, r, body)
 	}
 	op, e := community.SignOperation(s.key, id, r.State.Head, kind, body)
 	if e != nil {
@@ -549,4 +608,38 @@ func invitationRoute(t Transport) string {
 		return v.InvitationRoute()
 	}
 	return ""
+}
+
+func (s *Service) InviteStatus(ctx context.Context, id, raw string) (community.InvitationStatus, error) {
+	r, e := s.db.Community(id)
+	if e != nil {
+		return community.InvitationStatus{}, e
+	}
+	req := community.Request{Method: "invite.status", CommunityID: id, InviteToken: raw}
+	var res community.Response
+	if r.Owner == s.id {
+		res = s.Handle(ctx, s.id, req)
+	} else {
+		res, e = s.request(ctx, r, req)
+	}
+	if e != nil {
+		return community.InvitationStatus{}, e
+	}
+	if res.Error != "" {
+		return community.InvitationStatus{}, errors.New(res.Error)
+	}
+	if res.InvitationStatus == nil {
+		return community.InvitationStatus{}, errors.New("owner omitted invitation status")
+	}
+	return *res.InvitationStatus, nil
+}
+
+// Stable machine-readable causes without discarding the diagnostic returned by the authority.
+func failureCode(message string) string {
+	for _, code := range []string{"invite_expired", "invite_used", "invite_revoked", "invite_exhausted", "invite_registry_full", "community_full", "owner_unavailable", "connectivity_failure"} {
+		if strings.Contains(message, code+":") {
+			return code
+		}
+	}
+	return "sync_failure"
 }

@@ -32,7 +32,7 @@ func Uint(b []byte) (uint64, error) {
 }
 func Encode(prefix string, f Fields) string {
 	var out []byte
-	for n := 1; n <= 13; n++ {
+	for n := 1; n <= 14; n++ {
 		for _, b := range f[n] {
 			if n == 3 || n == 10 || n == 12 {
 				v, _ := Uint(b)
@@ -58,7 +58,7 @@ func Decode(raw, prefix string, max int) (Fields, error) {
 	count := 0
 	for len(b) > 0 {
 		n, t, k := protowire.ConsumeTag(b)
-		if k < 0 || n < 1 || n > 13 {
+		if k < 0 || n < 1 || n > 14 {
 			return nil, errors.New("invalid invitation field")
 		}
 		b = b[k:]

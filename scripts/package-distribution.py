@@ -7,6 +7,7 @@ a=argparse.ArgumentParser();a.add_argument('kind',choices=['windows','linux','li
 out=p/'dist/release';out.mkdir(parents=True,exist_ok=True)
 docs=['LICENSE','THIRD_PARTY_NOTICES.md','README.md','CHANGELOG.md','docs/INSTALACAO.md','docs/CONEXAO-RADMIN-VPN.md','docs/CONEXAO-HAMACHI.md','SECURITY.md','docs/COMUNIDADES-v0.5.md','docs/SEGURANCA-v0.5.md','docs/METRICAS-v0.5.md','docs/PLANO-v0.6-VOZ.md','docs/CRIPTOGRAFIA-E2EE-PLANO.md','docs/ASSINATURA-WINDOWS.md','docs/VALIDACAO-v0.5.md','docs/CONVITES-v0.5.1.md','docs/EASYTIER-v0.5.2.md','docs/VALIDACAO-v0.5.1-v0.5.2.md']
 docs += ['docs/EASYTIER-INTEGRADO-BETA-v0.5.2.md','docs/SEGURANCA-DHT-BETA.md','docs/VALIDACAO-BETA-v0.5.2.md','docs/METRICAS-BETA-v0.5.2.json']
+docs += ['docs/BETA-v0.6.0.md','docs/VALIDACAO-v0.6.0.md']
 if args.kind=='checksums':
  files=sorted(f for f in out.iterdir() if f.is_file() and f.name!='SHA256SUMS.txt')
  assert files,'No release files'

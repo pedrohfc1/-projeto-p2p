@@ -31,6 +31,8 @@ const (
 	Archive       = "community.archive"
 	ChannelCreate = "channel.create"
 	ChannelDelete = "channel.delete"
+	ChannelUpdate = "channel.update"
+	InviteRevoke  = "invite.revoke"
 	Join          = "member.join"
 	SetRole       = "member.role"
 	Remove        = "member.remove"
@@ -39,6 +41,7 @@ const (
 )
 
 type Body struct {
+	Limit       int    `json:"limit,omitempty"`
 	Name        string `json:"name,omitempty"`
 	Nickname    string `json:"nickname,omitempty"`
 	Description string `json:"description,omitempty"`
@@ -82,26 +85,31 @@ type Member struct {
 	Removed bool   `json:"removed"`
 }
 type Channel struct {
+	Role    string `json:"role,omitempty"`
+	Limit   int    `json:"limit,omitempty"`
 	ID      string `json:"id"`
 	Name    string `json:"name"`
 	Kind    string `json:"kind"`
 	Deleted bool   `json:"deleted"`
 }
 type State struct {
-	ID          string             `json:"id"`
-	Name        string             `json:"name"`
-	Description string             `json:"description"`
-	Icon        string             `json:"icon"`
-	Owner       string             `json:"owner"`
-	OwnerKey    []byte             `json:"ownerKey"`
-	Root        string             `json:"root"`
-	Sequence    uint64             `json:"sequence"`
-	Head        string             `json:"head"`
-	InviteEpoch uint64             `json:"inviteEpoch"`
-	Archived    bool               `json:"archived"`
-	Members     map[string]Member  `json:"members"`
-	Channels    map[string]Channel `json:"channels"`
-	InviteUses  map[string]string  `json:"inviteUses"`
+	MemberLimit    int                `json:"memberLimit,omitempty"`
+	InviteCounts   map[string]uint32  `json:"inviteCounts,omitempty"`
+	RevokedInvites map[string]bool    `json:"revokedInvites,omitempty"`
+	ID             string             `json:"id"`
+	Name           string             `json:"name"`
+	Description    string             `json:"description"`
+	Icon           string             `json:"icon"`
+	Owner          string             `json:"owner"`
+	OwnerKey       []byte             `json:"ownerKey"`
+	Root           string             `json:"root"`
+	Sequence       uint64             `json:"sequence"`
+	Head           string             `json:"head"`
+	InviteEpoch    uint64             `json:"inviteEpoch"`
+	Archived       bool               `json:"archived"`
+	Members        map[string]Member  `json:"members"`
+	Channels       map[string]Channel `json:"channels"`
+	InviteUses     map[string]string  `json:"inviteUses"`
 }
 
 func RandomID() string {
@@ -196,7 +204,7 @@ func VerifyOperation(o Operation) error {
 		return errors.New("invalid operation fields or size")
 	}
 	switch o.Kind {
-	case Create, Metadata, Archive, ChannelCreate, ChannelDelete, Join, SetRole, Remove, Leave, Text:
+	case Create, Metadata, Archive, ChannelCreate, ChannelDelete, ChannelUpdate, InviteRevoke, Join, SetRole, Remove, Leave, Text:
 	default:
 		return errors.New("unknown operation")
 	}
@@ -226,6 +234,14 @@ func copyState(s State) State {
 	t.InviteUses = map[string]string{}
 	for k, v := range s.InviteUses {
 		t.InviteUses[k] = v
+	}
+	t.InviteCounts = map[string]uint32{}
+	for k, v := range s.InviteCounts {
+		t.InviteCounts[k] = v
+	}
+	t.RevokedInvites = map[string]bool{}
+	for k, v := range s.RevokedInvites {
+		t.RevokedInvites[k] = v
 	}
 	return t
 }
@@ -272,7 +288,7 @@ func Apply(s State, c Commit) (State, error) {
 		if o.Kind != Create || o.Author != c.Owner || o.CommunityID != hash([]byte(o.Author+":"+o.Nonce)) || o.Base != "" || !NameOK(b.Name) {
 			return s, errors.New("invalid community genesis")
 		}
-		t = State{ID: o.CommunityID, Name: b.Name, Description: b.Description, Icon: b.Icon, Owner: c.Owner, OwnerKey: c.OwnerKey, Root: c.Hash, InviteEpoch: 1, Members: map[string]Member{o.Author: {ID: o.Author, Name: o.Body.Nickname, Role: "owner"}}, Channels: map[string]Channel{"geral": {ID: "geral", Name: "geral", Kind: "text"}, "voz": {ID: "voz", Name: "Sala de voz", Kind: "voice"}}, InviteUses: map[string]string{}}
+		t = State{MemberLimit: b.Limit, ID: o.CommunityID, Name: b.Name, Description: b.Description, Icon: b.Icon, Owner: c.Owner, OwnerKey: c.OwnerKey, Root: c.Hash, InviteEpoch: 1, Members: map[string]Member{o.Author: {ID: o.Author, Name: o.Body.Nickname, Role: "owner"}}, Channels: map[string]Channel{"geral": {ID: "geral", Name: "geral", Kind: "text"}, "voz": {ID: "voz", Name: "Sala de voz", Kind: "voice"}}, InviteUses: map[string]string{}}
 	} else {
 		if s.ID != o.CommunityID || s.Owner != c.Owner || string(s.OwnerKey) != string(c.OwnerKey) || s.Archived {
 			return s, errors.New("wrong owner/community or archived community")
@@ -295,13 +311,57 @@ func Apply(s State, c Commit) (State, error) {
 			}
 			t.Archived = true
 		case ChannelCreate:
+			if b.Role != "" && b.Role != "member" && b.Role != "moderator" {
+				return s, errors.New("invalid voice role")
+			}
+			if b.ChannelKind == "voice" && b.Limit > 6 || b.ChannelKind == "text" && b.Limit != 0 {
+				return s, errors.New("invalid channel participant limit")
+			}
+			if s.MemberLimit > 0 {
+				count := 0
+				for _, ch := range s.Channels {
+					if !ch.Deleted && ch.Kind == b.ChannelKind {
+						count++
+					}
+				}
+				limit := 50
+				if b.ChannelKind == "voice" {
+					limit = 20
+				}
+				if count >= limit {
+					return s, errors.New("channel_limit: limite de canais atingido")
+				}
+			}
 			if !s.Manages(o.Author) || !ChannelID(b.ChannelID) || !NameOK(b.Name) || (b.ChannelKind != "text" && b.ChannelKind != "voice") || len(s.Channels) >= MaxChannels {
 				return s, errors.New("channel creation not permitted or limit reached")
 			}
 			if _, ok := s.Channels[b.ChannelID]; ok {
 				return s, errors.New("channel ID already exists")
 			}
-			t.Channels[b.ChannelID] = Channel{ID: b.ChannelID, Name: b.Name, Kind: b.ChannelKind}
+			t.Channels[b.ChannelID] = Channel{ID: b.ChannelID, Name: b.Name, Kind: b.ChannelKind, Limit: b.Limit, Role: b.Role}
+		case InviteRevoke:
+			if !s.Manages(o.Author) || len(b.Invite) != 32 {
+				return s, errors.New("invite revocation not permitted")
+			}
+			if len(t.RevokedInvites) >= MaxInviteUses && !t.RevokedInvites[b.Invite] {
+				return s, errors.New("revocation registry full")
+			}
+			t.RevokedInvites[b.Invite] = true
+		case ChannelUpdate:
+			ch, ok := s.Channels[b.ChannelID]
+			if !s.Manages(o.Author) || !ok || ch.Deleted || !NameOK(b.Name) {
+				return s, errors.New("channel update not permitted")
+			}
+			ch.Name = b.Name
+			if ch.Kind == "voice" && b.Limit > 6 || ch.Kind == "text" && b.Limit != 0 {
+				return s, errors.New("invalid channel limit")
+			}
+			if b.Role != "" && b.Role != "member" && b.Role != "moderator" {
+				return s, errors.New("invalid channel role")
+			}
+			ch.Role = b.Role
+			ch.Limit = b.Limit
+			t.Channels[ch.ID] = ch
 		case ChannelDelete:
 			ch, ok := s.Channels[b.ChannelID]
 			if !s.Manages(o.Author) || !ok || ch.Deleted {
@@ -314,14 +374,36 @@ func Apply(s State, c Commit) (State, error) {
 			if e != nil {
 				return s, e
 			}
-			if role != "" || ticket.CommunityID != s.ID || ticket.Owner != s.Owner || ticket.Root != s.Root || ticket.Epoch != s.InviteEpoch || !NameOK(b.Name) {
+			if role != "" || ticket.CommunityID != s.ID || ticket.Owner != s.Owner || ticket.Root != s.Root || !NameOK(b.Name) {
 				return s, errors.New("join invitation is stale or inconsistent")
 			}
-			if _, used := s.InviteUses[ticket.Nonce]; used || len(s.InviteUses) >= MaxInviteUses {
-				return s, errors.New("invitation already consumed or invite limit reached")
+			if ticket.Epoch != s.InviteEpoch || s.RevokedInvites[ticket.Nonce] {
+				return s, errors.New("invite_revoked: convite revogado")
 			}
-			if _, exists := s.Members[o.Author]; !exists && len(s.Members) >= MaxMembers {
-				return s, errors.New("community member limit reached")
+			used := s.InviteCounts[ticket.Nonce]
+			if used == 0 && s.InviteUses[ticket.Nonce] != "" {
+				used = 1
+			}
+			limit := ticket.MaxUses
+			if ticket.Policy == "" || ticket.Policy == "single" {
+				limit = 1
+			}
+			if limit > 0 && used >= limit {
+				if limit == 1 {
+					return s, errors.New("invite_used: convite utilizado")
+				}
+				return s, errors.New("invite_exhausted: limite de utilizacoes atingido")
+			}
+			if used == 0 && len(s.InviteUses) >= MaxInviteUses {
+				return s, errors.New("invite_registry_full: limite de registros de convites")
+			}
+			t.InviteCounts[ticket.Nonce] = used + 1
+			limitMembers := MaxMembers
+			if s.MemberLimit > 0 {
+				limitMembers = s.MemberLimit
+			}
+			if _, exists := s.Members[o.Author]; !exists && len(s.Members) >= limitMembers {
+				return s, errors.New("community_full: comunidade cheia")
 			}
 			t.InviteUses[ticket.Nonce] = o.Author
 			t.Members[o.Author] = Member{ID: o.Author, Name: b.Name, Role: "member"}
@@ -361,6 +443,9 @@ func Apply(s State, c Commit) (State, error) {
 }
 
 func fieldBounds(b Body, base string) error {
+	if b.Limit < 0 || b.Limit > MaxMembers {
+		return errors.New("invalid resource limit")
+	}
 	if !SafeText(b.Text, MaxText, true) || !SafeText(b.Description, 1024, true) || !SafeText(b.Name, 80, false) || !SafeText(b.Nickname, 80, false) || !SafeText(b.Icon, 32, false) || len(b.ChannelID) > 64 || len(b.Invite) > 16000 || len(b.Target) > 128 || len(b.Role) > 16 || len(b.ChannelKind) > 8 || (base != "" && !ValidID(base)) {
 		return errors.New("invalid or oversized operation fields")
 	}
@@ -371,11 +456,15 @@ func bodyShape(kind string, b Body) bool {
 	allowed := Body{}
 	switch kind {
 	case Create:
-		allowed = Body{Name: b.Name, Description: b.Description, Icon: b.Icon, Nickname: b.Nickname}
+		allowed = Body{Name: b.Name, Description: b.Description, Icon: b.Icon, Nickname: b.Nickname, Limit: b.Limit}
 	case Metadata:
 		allowed = Body{Name: b.Name, Description: b.Description, Icon: b.Icon}
 	case ChannelCreate:
-		allowed = Body{Name: b.Name, ChannelID: b.ChannelID, ChannelKind: b.ChannelKind}
+		allowed = Body{Name: b.Name, ChannelID: b.ChannelID, ChannelKind: b.ChannelKind, Limit: b.Limit, Role: b.Role}
+	case ChannelUpdate:
+		allowed = Body{ChannelID: b.ChannelID, Name: b.Name, Limit: b.Limit, Role: b.Role}
+	case InviteRevoke:
+		allowed = Body{Invite: b.Invite}
 	case ChannelDelete:
 		allowed = Body{ChannelID: b.ChannelID}
 	case Join:

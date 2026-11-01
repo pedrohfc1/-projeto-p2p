@@ -15,4 +15,5 @@ message Invitation {
  bytes nonce = 11;
  uint32 legacy_list_flags = 12;
  bytes integrated_route = 13;
+ bytes signed_community_policy = 14;
 }

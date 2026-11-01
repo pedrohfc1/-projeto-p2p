@@ -1,3 +1,5 @@
+> **Beta privado 0.6.0:** convites com políticas assinadas, novas comunidades com texto entre membros e voz Opus para duas pessoas via EasyTier userspace. [Guia e teste entre PCs](docs/BETA-v0.6.0.md) · [Resultados e segurança](docs/VALIDACAO-v0.6.0.md). Release público bloqueado; nenhum upload automático. A documentação 0.5 abaixo descreve o histórico e as comunidades legadas.
+
 > Beta privado 0.5.2: integração real EasyTier sem TUN em validação. Consulte [arquitetura e teste entre PCs](docs/EASYTIER-INTEGRADO-BETA-v0.5.2.md) e [quarentena DHT](docs/SEGURANCA-DHT-BETA.md). As descrições antigas de laboratório abaixo são históricas. Release público bloqueado.
 
 # Projeto P2P

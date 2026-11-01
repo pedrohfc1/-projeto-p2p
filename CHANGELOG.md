@@ -1,3 +1,13 @@
+## 0.6.0 — beta privado de voz para duas pessoas (2026-11-01)
+
+- Convites compactos com políticas assinadas, cotas, expiração, status e revogação; legados continuam de uso único.
+- Novas comunidades com 100 membros registrados, 50 canais de texto e 20 de voz; controle de salas e permissões no backend.
+- Diário de texto assinado pelos autores e replicado entre membros nas novas comunidades, separado do registro de controle do proprietário.
+- Captura explícita de microfone, seleção de dispositivos, Opus, Pion/DTLS-SRTP e sinalização autenticada libp2p; barra de chamada persistente, mute/deaf e saída.
+- Encaminhador UDP EasyTier userspace dedicado à mídia, sem TUN/Npcap; reconexão e encerramento por revogação/expiração.
+- Testes locais com dois processos e mídia sintética; testes de dispositivos físicos, instalação limpa e voz entre casas ainda pendentes. Malha de 3–6 e volume individual ficam para 0.6.1.
+- Migração schema 3 preserva dados e impede downgrade silencioso. Release público continua bloqueado por avisos Rust e validações pendentes.
+
 ## 0.5.2 — beta privado integrado (2026-11-01)
 
 - Chat e comunidades sobre libp2p/Noise via SOCKS/EasyTier sem TUN, com helper embutido, credenciais protegidas e convites assinados.

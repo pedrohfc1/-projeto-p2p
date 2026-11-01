@@ -1,1 +1,1 @@
-0.5.2 private beta: public release blocked pending integrated transport acceptance, dependency/source/license review and two-network testing. Legacy DHT research builds retain GO-2024-3218 and must never be published as this beta.
+0.6.0 private beta: public release blocked by unresolved Rust advisories and pending native audio/two-house voice validation. Legacy DHT GO-2024-3218 remains quarantined behind legacydht. No automatic publishing.

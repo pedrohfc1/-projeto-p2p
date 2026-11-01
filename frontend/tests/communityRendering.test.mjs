@@ -18,6 +18,6 @@ test('conteúdo remoto é texto escapado e hub permite criar/entrar sem captura 
   const hub=renderToStaticMarkup(React.createElement(CommunityHub,{api:()=>({}),onClose:()=>{},onOpen:()=>{},onNetwork:async()=>{}}));
   assert.ok(hub.includes('Criar comunidade'));assert.ok(hub.includes('Entrar por convite'));assert.ok(hub.includes('proprietário precisa estar online'));
   assert.ok(!hub.includes('<audio'));assert.ok(!hub.includes('<video'));
-  const index=await readFile('index.html','utf8');assert.ok(index.includes('Content-Security-Policy'));assert.ok(index.includes("script-src 'self'"));assert.ok(index.includes("media-src 'none'"));
+  const index=await readFile('index.html','utf8');assert.ok(index.includes('Content-Security-Policy'));assert.ok(index.includes("script-src 'self'"));assert.ok(index.includes("media-src 'self' blob: mediastream:"));
  }finally{assert.equal(dirname(dir),root);await rm(dir,{recursive:true,force:true})}
 });

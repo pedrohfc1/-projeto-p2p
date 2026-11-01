@@ -2,13 +2,15 @@ package localdb
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	bolt "go.etcd.io/bbolt"
+	"projetop2p/internal/community"
 )
 
-const CurrentSchema uint64 = 2
+const CurrentSchema uint64 = 3
 
-var communityBuckets = []string{"communities", "community_events", "community_opids", "community_messages", "community_outbox"}
+var communityBuckets = []string{"communities", "community_events", "community_opids", "community_messages", "community_outbox", "community_peer_text", "community_peer_ids", "community_heads"}
 
 func (d *DB) SchemaVersion() (uint64, error) {
 	var version uint64
@@ -53,6 +55,9 @@ func (d *DB) MigrateTo(target uint64) error {
 			}
 		}
 		if target < version {
+			if version >= 3 {
+				return errors.New("v0.6 community policies cannot be downgraded; restore a backup instead")
+			}
 			for _, name := range communityBuckets {
 				if b := tx.Bucket([]byte(name)); b != nil {
 					key, _ := b.Cursor().First()
@@ -74,6 +79,33 @@ func (d *DB) MigrateTo(target uint64) error {
 		} else if target >= 2 {
 			for _, name := range communityBuckets {
 				if _, e := tx.CreateBucketIfNotExists([]byte(name)); e != nil {
+					return e
+				}
+			}
+		}
+		if target >= 3 {
+			parent := tx.Bucket([]byte("community_events"))
+			if parent != nil {
+				if e := parent.ForEach(func(id, v []byte) error {
+					events := parent.Bucket(id)
+					if events == nil {
+						return nil
+					}
+					heads, e := sub(tx, "community_heads", string(id))
+					if e != nil {
+						return e
+					}
+					if heads.Stats().KeyN >= events.Stats().KeyN {
+						return nil
+					}
+					return events.ForEach(func(k, v []byte) error {
+						var c community.Commit
+						if e := json.Unmarshal(v, &c); e != nil {
+							return e
+						}
+						return heads.Put([]byte(c.Hash), k)
+					})
+				}); e != nil {
 					return e
 				}
 			}

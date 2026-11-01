@@ -205,6 +205,9 @@ func decodeCompact(raw string) (Invite, error) {
 	if e != nil {
 		return i, e
 	}
+	if len(f[14]) > 0 {
+		return i, errors.New("unexpected contact policy field")
+	}
 	for n := 8; n <= 11; n++ {
 		if len(f[n]) > 0 {
 			return i, errors.New("unexpected contact field")

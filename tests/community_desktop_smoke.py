@@ -46,20 +46,24 @@ def main():
    assert any(ch['kind']=='voice' for ch in state['community']['channels'])
    reject(member,'CommunityAction',ID=group,Kind='member.role',Body={'target':member.rpc('State',ID='')['network']['id'],'role':'owner'})
    begin=time.perf_counter();sent=member.rpc('CommunityAction',ID=group,Kind='message.text',Body={'channelId':channel,'text':'<script>não executar</script> 🇧🇷'});roundtrip=(time.perf_counter()-begin)*1000
-   assert sent['status']=='confirmada',sent
-   mod.rpc('SyncCommunity',ID=group);received=mod.rpc('CommunityState',ID=group,Channel=channel,Before=0)
-   assert len(received['messages'])==1 and received['messages'][0]['id']==sent['id']
+   assert sent['status'] in ('replicada','salva localmente'),sent
+   deadline=time.monotonic()+35
+   while True:
+    received=mod.rpc('CommunityState',ID=group,Channel=channel,Before=0)
+    if any(m['id']==sent['id'] for m in received['messages']):break
+    assert time.monotonic()<deadline,'Peer journal did not replicate'
+    time.sleep(.3)
    # Outage and crash/restart preserve ownership and immutable pending operation IDs.
    oid=owner.rpc('State',ID='')['network']['id'];owner.close()
-   pending=member.rpc('CommunityAction',ID=group,Kind='message.text',Body={'channelId':channel,'text':'pendente durante queda'});assert pending['status']=='pendente',pending
+   pending=member.rpc('CommunityAction',ID=group,Kind='message.text',Body={'channelId':channel,'text':'pendente durante queda'});assert pending['status'] in ('replicada','salva localmente'),pending
    owner=Bridge(binary,root/'owner');processes.append(owner);assert owner.rpc('State',ID='')['network']['id']==oid
    deadline=time.monotonic()+35
    while True:
     try:
-     member.rpc('SyncCommunity',ID=group);rows=member.rpc('CommunityState',ID=group,Channel=channel,Before=0)['messages']
-     if any(m['id']==pending['id'] and m['status']=='confirmada' for m in rows):break
+     member.rpc('SyncCommunity',ID=group);rows=owner.rpc('CommunityState',ID=group,Channel=channel,Before=0)['messages']
+     if any(m['id']==pending['id'] and m['status']=='assinada pelo autor' for m in rows):break
     except AssertionError:pass
-    if time.monotonic()>deadline:raise AssertionError('Community outbox recovery timed out')
+    if time.monotonic()>deadline:raise AssertionError('Peer journal recovery timed out')
     time.sleep(.3)
    member.rpc('SyncCommunity',ID=group);rows=owner.rpc('CommunityState',ID=group,Channel=channel,Before=0)['messages'];assert len(rows)==2 and len({m['id'] for m in rows})==2
    # Direct messages continue using the existing text protocol/profile.
@@ -72,9 +76,9 @@ def main():
    reject(member,'SyncCommunity',ID=group);view=member.rpc('CommunityState',ID=group,Channel=channel,Before=0);assert view['community']['denied']
    reject(member,'CommunityAction',ID=group,Kind='message.text',Body={'channelId':channel,'text':'não autorizado'})
    if args.metrics:
-    report={'version':'0.5.2','scenario':'3 production backend processes over '+('integrated EasyTier via community relay, same PC' if args.integrated else 'real Radmin adapter, same PC' if args.radmin else 'loopback')+'; no native GUI measurement','durationSeconds':time.monotonic()-started,'ownerRestartedDuringScenario':True,'idleOwnerBeforeCommunities':idle,'afterScenario':metrics,'messageCommitRpcRoundtripMs':roundtrip,'manualPingMs':diagnostics.get('rttMicros',diagnostics['rttMillis']*1000)/1000,'renderCommitMs':None,'renderReason':'instrumented in UI, not measured by this API-only test','packetLoss':None,'packetLossReason':'TCP counters do not measure UDP loss'}
+    report={'version':'0.6.0','scenario':'3 production backend processes over '+('integrated EasyTier via community relay, same PC' if args.integrated else 'real Radmin adapter, same PC' if args.radmin else 'loopback')+'; no native GUI measurement','durationSeconds':time.monotonic()-started,'ownerRestartedDuringScenario':True,'idleOwnerBeforeCommunities':idle,'afterScenario':metrics,'messageCommitRpcRoundtripMs':roundtrip,'manualPingMs':diagnostics.get('rttMicros',diagnostics['rttMillis']*1000)/1000,'renderCommitMs':None,'renderReason':'instrumented in UI, not measured by this API-only test','packetLoss':None,'packetLossReason':'TCP counters do not measure UDP loss'}
     pathlib.Path(args.metrics).write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
-   print('PASS: three real desktop services, communities, owner-signed invites, roles, channel text, sync, durable outbox, restart, deduplication, revocation and preserved direct chat; '+('integrated EasyTier, same PC' if args.integrated else 'real Radmin adapter on one PC' if args.radmin else 'loopback'))
+   print('PASS: three real desktop services, communities, owner-signed invites, roles, channel text, sync, durable peer journal, restart, deduplication, revocation and preserved direct chat; '+('integrated EasyTier, same PC' if args.integrated else 'real Radmin adapter on one PC' if args.radmin else 'loopback'))
   finally:
    for b in processes:b.close()
 if __name__=='__main__':main()

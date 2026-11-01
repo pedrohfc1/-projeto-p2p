@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/pion/webrtc/v4"
 	"net"
 	"net/http"
 	"os"
@@ -48,6 +49,10 @@ func main() {
 			return
 		}
 		var req struct {
+			Offer       webrtc.SessionDescription
+			Muted       bool
+			Deaf        bool
+			Options     community.InviteOptions
 			Method      string
 			ID          string
 			Text        string
@@ -60,7 +65,7 @@ func main() {
 			Description string
 			Icon        string
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, 32768)
+		r.Body = http.MaxBytesReader(w, r.Body, 65536)
 		if e := json.NewDecoder(r.Body).Decode(&req); e != nil {
 			http.Error(w, e.Error(), 400)
 			return
@@ -68,6 +73,19 @@ func main() {
 		var result any
 		var err error
 		switch req.Method {
+		case "VoiceState":
+			result = core.VoiceState()
+		case "VoiceJoin":
+			result, err = core.VoiceJoin(req.ID, req.Channel, req.Offer)
+		case "VoiceLeave":
+			core.VoiceLeave()
+		case "VoiceControls":
+			core.VoiceControls(req.Muted, req.Deaf)
+		case "CommunityInvitePolicy":
+			result, err = core.CommunityInvitePolicy(req.ID, req.Options)
+		case "CommunityInviteStatus":
+			result, err = core.CommunityInviteStatus(req.ID, req.Text)
+
 		case "CreateCommunity":
 			result, err = core.CreateCommunity(req.Name, req.Description, req.Icon)
 		case "CommunityState":
@@ -130,7 +148,7 @@ func main() {
 			http.Error(w, e.Error(), 500)
 			return
 		}
-		script := `<script nonce="` + token + `">const rpc=async(method,args={})=>{const r=await fetch('/rpc',{method:'POST',headers:{'Content-Type':'application/json','X-QA-Token':'` + token + `'},body:JSON.stringify({Method:method,...args})});const v=await r.json();if(!r.ok)throw Error(v.error);return v};window.go={main:{App:{CreateCommunity:(name,description,icon)=>rpc('CreateCommunity',{Name:name,Description:description,Icon:icon}),CommunityState:(id,channel,before)=>rpc('CommunityState',{ID:id,Channel:channel,Before:before}),CommunityAction:(id,kind,body)=>rpc('CommunityAction',{ID:id,Kind:kind,Body:body}),CommunityInvite:id=>rpc('CommunityInvite',{ID:id}),JoinCommunity:text=>rpc('JoinCommunity',{Text:text}),SyncCommunity:id=>rpc('SyncCommunity',{ID:id}),DiscardCommunityPending:(id,op)=>rpc('DiscardCommunityPending',{ID:id,Text:op}),State:id=>rpc('State',{ID:id}),Send:(id,text)=>rpc('Send',{ID:id,Text:text}),AddContact:text=>rpc('AddContact',{Text:text}),ConnectInvite:text=>rpc('ConnectInvite',{Text:text}),TestConnectivity:id=>rpc('TestConnectivity',{ID:id}),SaveSettings:settings=>rpc('SaveSettings',{Settings:settings}),LegacyInvite:text=>rpc('LegacyInvite',{Text:text}),Invite:()=>rpc('Invite'),Copy:text=>navigator.clipboard.writeText(text)}}};</script>`
+		script := `<script nonce="` + token + `">const rpc=async(method,args={})=>{const r=await fetch('/rpc',{method:'POST',headers:{'Content-Type':'application/json','X-QA-Token':'` + token + `'},body:JSON.stringify({Method:method,...args})});const v=await r.json();if(!r.ok)throw Error(v.error);return v};window.go={main:{App:{VoiceState:()=>rpc('VoiceState'),VoiceJoin:(id,channel,offer)=>rpc('VoiceJoin',{ID:id,Channel:channel,Offer:offer}),VoiceLeave:()=>rpc('VoiceLeave'),VoiceControls:(muted,deaf)=>rpc('VoiceControls',{Muted:muted,Deaf:deaf}),CommunityInvitePolicy:(id,options)=>rpc('CommunityInvitePolicy',{ID:id,Options:options}),CommunityInviteStatus:(id,text)=>rpc('CommunityInviteStatus',{ID:id,Text:text}),CreateCommunity:(name,description,icon)=>rpc('CreateCommunity',{Name:name,Description:description,Icon:icon}),CommunityState:(id,channel,before)=>rpc('CommunityState',{ID:id,Channel:channel,Before:before}),CommunityAction:(id,kind,body)=>rpc('CommunityAction',{ID:id,Kind:kind,Body:body}),CommunityInvite:id=>rpc('CommunityInvite',{ID:id}),JoinCommunity:text=>rpc('JoinCommunity',{Text:text}),SyncCommunity:id=>rpc('SyncCommunity',{ID:id}),DiscardCommunityPending:(id,op)=>rpc('DiscardCommunityPending',{ID:id,Text:op}),State:id=>rpc('State',{ID:id}),Send:(id,text)=>rpc('Send',{ID:id,Text:text}),AddContact:text=>rpc('AddContact',{Text:text}),ConnectInvite:text=>rpc('ConnectInvite',{Text:text}),TestConnectivity:id=>rpc('TestConnectivity',{ID:id}),SaveSettings:settings=>rpc('SaveSettings',{Settings:settings}),LegacyInvite:text=>rpc('LegacyInvite',{Text:text}),Invite:()=>rpc('Invite'),Copy:text=>navigator.clipboard.writeText(text)}}};</script>`
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write([]byte(strings.Replace(strings.Replace(string(b), "script-src 'self'", "script-src 'self' 'nonce-"+token+"'", 1), "</head>", script+"</head>", 1)))
 	})

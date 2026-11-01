@@ -19,7 +19,14 @@ import (
 const InvitePrefix = "projetop2p-community:"
 const CompactInvitePrefix = "projetop2p-community:c2:"
 
+type InviteOptions struct {
+	Kind          string `json:"kind"`
+	MaxUses       uint32 `json:"maxUses"`
+	LifetimeHours int    `json:"lifetimeHours"`
+}
 type Invite struct {
+	Policy      string   `json:"policy,omitempty"`
+	MaxUses     uint32   `json:"maxUses,omitempty"`
 	Route       string   `json:"route,omitempty"`
 	Domain      string   `json:"domain"`
 	CommunityID string   `json:"communityId"`
@@ -37,6 +44,29 @@ type Invite struct {
 
 func (i Invite) payload() []byte { i.Signature = nil; b, _ := json.Marshal(i); return b }
 func NewInvite(key crypto.PrivKey, s State, scope string, addresses []string, routes ...string) (string, error) {
+	return newInvite(key, s, scope, addresses, InviteOptions{}, routes...)
+}
+func NewPolicyInvite(key crypto.PrivKey, s State, scope string, addresses []string, options InviteOptions, routes ...string) (string, error) {
+	if err := options.Validate(); err != nil {
+		return "", err
+	}
+	return newInvite(key, s, scope, addresses, options, routes...)
+}
+func (o InviteOptions) Validate() error {
+	if o.Kind != "single" && o.Kind != "multi" && o.Kind != "permanent" {
+		return errors.New("invalid invitation policy")
+	}
+	if o.Kind == "single" && o.MaxUses != 1 || o.Kind == "multi" && (o.MaxUses < 2 || o.MaxUses > 100) || o.Kind == "permanent" && o.MaxUses != 0 {
+		return errors.New("invalid invitation use limit")
+	}
+	switch o.LifetimeHours {
+	case 0, 1, 24, 168, 720:
+	default:
+		return errors.New("invalid invitation lifetime")
+	}
+	return nil
+}
+func newInvite(key crypto.PrivKey, s State, scope string, addresses []string, options InviteOptions, routes ...string) (string, error) {
 	id, _ := peer.IDFromPrivateKey(key)
 	if id.String() != s.Owner || s.Archived {
 		return "", errors.New("owner signing key required")
@@ -46,6 +76,14 @@ func NewInvite(key crypto.PrivKey, s State, scope string, addresses []string, ro
 		addresses = addresses[:8]
 	}
 	i := Invite{Domain: "projetop2p/community-invite/1", CommunityID: s.ID, Name: s.Name, Owner: s.Owner, OwnerKey: pub, Root: s.Root, Epoch: s.InviteEpoch, Nonce: RandomID(), Expires: time.Now().Add(24 * time.Hour).Unix(), Scope: scope, Addresses: addresses}
+	if options.Kind != "" {
+		i.Policy = options.Kind
+		i.MaxUses = options.MaxUses
+		i.Expires = 0
+		if options.LifetimeHours > 0 {
+			i.Expires = time.Now().Add(time.Duration(options.LifetimeHours) * time.Hour).Unix()
+		}
+	}
 	if len(routes) > 0 {
 		i.Route = routes[0]
 	}
@@ -83,8 +121,23 @@ func ParseInvite(raw string, now time.Time) (Invite, error) {
 	if e = dec.Decode(&i); e != nil {
 		return i, e
 	}
-	if i.Domain != "projetop2p/community-invite/1" || !ValidID(i.CommunityID) || !ValidID(i.Root) || !NameOK(i.Name) || len(i.Nonce) != 32 || i.Epoch == 0 || i.Expires < now.Unix() || i.Expires > now.Add(8*24*time.Hour).Unix() || len(i.Addresses) == 0 || len(i.Addresses) > 8 {
+	if i.Domain != "projetop2p/community-invite/1" || !ValidID(i.CommunityID) || !ValidID(i.Root) || !NameOK(i.Name) || len(i.Nonce) != 32 || i.Epoch == 0 || len(i.Addresses) == 0 || len(i.Addresses) > 8 {
 		return i, errors.New("expired or invalid community invitation")
+	}
+	if i.Policy == "" {
+		if i.MaxUses != 0 || i.Expires == 0 || i.Expires > now.Add(8*24*time.Hour).Unix() {
+			return i, errors.New("invalid legacy invitation")
+		}
+	} else {
+		if e := (InviteOptions{Kind: i.Policy, MaxUses: i.MaxUses}).Validate(); e != nil {
+			return i, e
+		}
+		if i.Expires > now.Add(31*24*time.Hour).Unix() {
+			return i, errors.New("invalid invitation expiration")
+		}
+	}
+	if i.Expires != 0 && i.Expires < now.Unix() {
+		return i, errors.New("invite_expired: convite expirado")
 	}
 	if i.Scope != "auto" && i.Scope != "radmin" && i.Scope != "hamachi" && i.Scope != "interface" && i.Scope != "integrated" {
 		return i, errors.New("invalid invitation network scope")
@@ -130,6 +183,10 @@ func encodeCompactInvite(i Invite) (string, error) {
 	key, e := compactinvite.RawKey(i.OwnerKey)
 	if e != nil {
 		return "", e
+	}
+	if i.Policy != "" {
+		policy, _ := json.Marshal(InviteOptions{Kind: i.Policy, MaxUses: i.MaxUses})
+		f.Add(14, policy)
 	}
 	f.Add(1, []byte(i.Name))
 	f.Add(2, key)
@@ -182,6 +239,14 @@ func decodeCompactInvite(raw string) (Invite, error) {
 	i.Scope = string(f.One(4))
 	i.Signature = f.One(7)
 	i.Route = string(f.One(13))
+	if len(f[14]) > 0 {
+		var policy InviteOptions
+		if len(f.One(14)) > 128 || json.Unmarshal(f.One(14), &policy) != nil {
+			return i, errors.New("invalid compact policy")
+		}
+		i.Policy = policy.Kind
+		i.MaxUses = policy.MaxUses
+	}
 	i.CommunityID = hex.EncodeToString(f.One(8))
 	i.Root = hex.EncodeToString(f.One(9))
 	i.Nonce = hex.EncodeToString(f.One(11))

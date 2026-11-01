@@ -33,7 +33,7 @@ func TestCommunitiesAuthenticatedRolesSyncAndRevocation(t *testing.T) {
 	defer member.Close()
 	outsider := communityCore(t, t.TempDir(), "Intruso", freePort(t))
 	defer outsider.Close()
-	group, e := owner.CreateCommunity("Bairro conectado", "Sem servidor global", "🇧🇷")
+	group, e := createLegacyCommunity(t, owner, "Bairro conectado", "Sem servidor global", "🇧🇷")
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -175,7 +175,7 @@ func TestCommunityOutboxSurvivesOwnerOutageAndRestart(t *testing.T) {
 			member.Close()
 		}
 	}()
-	group, e := owner.CreateCommunity("Persistência", "", "🌱")
+	group, e := createLegacyCommunity(t, owner, "Persistência", "", "🌱")
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -243,4 +243,20 @@ func TestCommunityOutboxSurvivesOwnerOutageAndRestart(t *testing.T) {
 	if e != nil || len(earlier.Messages) != 4 {
 		t.Fatal("pagination cursor wrong", len(earlier.Messages), e)
 	}
+}
+
+// Preserve regression coverage of the immutable pre-v0.6 owner-ordered format.
+func createLegacyCommunity(t *testing.T, c *Core, name, description, icon string) (string, error) {
+	t.Helper()
+	settings, _ := c.db.Settings()
+	op, e := community.SignOperation(c.key, "", "", community.Create, community.Body{Name: name, Description: description, Icon: icon, Nickname: settings.Name})
+	if e != nil {
+		return "", e
+	}
+	commit, state, e := community.MakeCommit(c.key, community.State{}, op)
+	if e != nil {
+		return "", e
+	}
+	record := localdb.CommunityRecord{ID: state.ID, Owner: state.Owner, Root: state.Root, Name: name, Scope: "interface"}
+	return state.ID, c.db.CreateOwnedCommunity(record, commit)
 }

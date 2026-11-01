@@ -21,7 +21,15 @@
 +easytier-proto = { path = "../../easytier-minimal/easytier-proto" }
 --- a/src/app.rs
 +++ b/src/app.rs
-@@ -706,7 +706,8 @@
+@@ -255,6 +255,7 @@
+     let access = AccessPolicy {
+         destination_ip: material.identity.gateway_ipv4(),
+         ports: vec![gateway_port],
++        udp_port: std::env::var("P2P_ETCAT_UDP_SERVE").ok().map(|s|s.parse::<u16>()).transpose()?.filter(|p|*p>=1024),
+     };
+     let (mesh, relay) = connect_server_mesh(&material, &credentials, &access).await?;
+     let token = make_token(
+@@ -706,7 +707,8 @@
  }
  
  struct ClientSession {
@@ -31,7 +39,27 @@
      gateway: SocketAddr,
      network_name: String,
      server_fingerprint: [u8; 16],
-@@ -744,7 +745,8 @@
+@@ -732,19 +734,27 @@
+             local_port,
+             SocketAddr::new(IpAddr::V4(server_ip), gateway_port),
+         );
++        let mut forwards=vec![forward];
++        if let Ok(spec)=std::env::var("P2P_ETCAT_UDP_FORWARD") {
++            let(local,remote)=spec.split_once(':').context("invalid UDP forward")?;
++            let local:u16=local.parse()?;let remote:u16=remote.parse()?;
++            anyhow::ensure!(local>=1024&&remote>=1024,"privileged UDP forwarding prohibited");
++            let mut udp=tcp_forward(local,SocketAddr::new(IpAddr::V4(server_ip),remote));udp.proto="udp".to_owned();forwards.push(udp);
++        }
+         let config = client_config(
+             &network_name,
+             &credential_secret,
+             client_ip,
+             &relay,
+-            vec![forward],
++            forwards,
+             None,
+         )?;
+         let mesh = MeshInstance::start(config).await?;
          let server_fingerprint = token.server_fingerprint()?;
          wait_for_gateway_route(&mesh, server_ip, Duration::from_secs(30)).await?;
          Ok(Self {
@@ -41,7 +69,7 @@
              gateway: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), local_port),
              network_name,
              server_fingerprint,
-@@ -822,7 +824,11 @@
+@@ -822,7 +832,11 @@
  }
  
  async fn run_socks(args: &crate::cli::SocksArgs, cli: &Cli) -> Result<()> {
@@ -54,7 +82,7 @@
      let mut executable = program.first().and_then(resolve_executable);
      let fixed_token = if let Some(first) = program.first()
          && (has_token_prefix(first) || (first.contains('.') && executable.is_none()))
-@@ -881,6 +887,20 @@
+@@ -881,6 +895,20 @@
          return Ok(());
      }
  
@@ -75,6 +103,24 @@
      eprintln!("SOCKS running at {proxy_url}");
      serve_socks(listener, fixed, options).await
  }
+--- a/src/cli.rs
++++ b/src/cli.rs
+@@ -74,6 +74,7 @@
+ 
+ #[derive(Debug, Args)]
+ pub(crate) struct TokenArg {
++    #[arg(env = "P2P_ETCAT_TARGET")]
+     pub(crate) token: String,
+ }
+ 
+@@ -83,6 +84,7 @@
+     pub(crate) until_direct: bool,
+     #[arg(long, default_value = "10s")]
+     pub(crate) timeout: String,
++    #[arg(env = "P2P_ETCAT_TARGET")]
+     pub(crate) token: String,
+ }
+ 
 --- a/src/network.rs
 +++ b/src/network.rs
 @@ -12,7 +12,7 @@
@@ -86,7 +132,15 @@
  
  use crate::{
      identity::{ServerIdentity, easytier_credential_secret, secure_mode},
-@@ -141,12 +141,15 @@
+@@ -25,6 +25,7 @@
+ pub struct AccessPolicy {
+     pub destination_ip: Ipv4Addr,
+     pub ports: Vec<u16>,
++    pub udp_port: Option<u16>,
+ }
+ 
+ pub struct MeshInstance {
+@@ -141,12 +142,15 @@
      forwards: Vec<PortForwardConfig>,
      socks5: Option<SocketAddr>,
  ) -> Result<TomlConfig> {
@@ -107,7 +161,7 @@
      config.set_network_identity(NetworkIdentity::new_credential(network_name.to_owned()));
      config.set_secure_mode(Some(secure_mode(&credential_secret)?));
      config.set_acl(Some(build_client_acl()));
-@@ -181,6 +184,8 @@
+@@ -181,6 +185,8 @@
      );
      let mut flags = config.get_flags();
      flags.no_tun = true;
@@ -116,6 +170,34 @@
      flags.use_smoltcp = true;
      flags.enable_encryption = true;
      flags.need_p2p = true;
+@@ -205,12 +211,14 @@
+         stateful: true,
+         ..Default::default()
+     };
++    let udp_rule = access.udp_port.map(|port| Rule {name:"p2p-media-udp".to_owned(),protocol:Protocol::Udp as i32,ports:vec![port.to_string()],..inbound_allow.clone()});
++    let mut allowed = vec![inbound_allow.clone()];if let Some(rule)=udp_rule.clone(){allowed.push(rule);}
+     let mut chains = vec![Chain {
+         name: "etcat-inbound".to_owned(),
+         chain_type: ChainType::Inbound as i32,
+         description: "Token-scoped service access".to_owned(),
+         enabled: true,
+-        rules: vec![inbound_allow.clone()],
++        rules: allowed,
+         default_action: Action::Drop as i32,
+     }];
+     chains.push(Chain {
+@@ -218,10 +226,7 @@
+         chain_type: ChainType::Forward as i32,
+         description: "Token-scoped gateway forwarding".to_owned(),
+         enabled: true,
+-        rules: vec![Rule {
+-            name: "etcat-token-forward".to_owned(),
+-            ..inbound_allow
+-        }],
++        rules: {let mut rules=vec![Rule{name:"etcat-token-forward".to_owned(),..inbound_allow}];if let Some(rule)=udp_rule{rules.push(rule);}rules},
+         default_action: Action::Drop as i32,
+     });
+     Acl {
 @@ -274,7 +279,8 @@
          // never be allowed to publish a competing route themselves.
          allowed_proxy_cidrs: Vec::new(),
@@ -124,23 +206,5 @@
 +        // Sharing a signed app invitation is intentional; libp2p authenticates each peer.
 +        reusable: true,
      })
- }
- 
---- a/src/cli.rs
-+++ b/src/cli.rs
-@@ -74,6 +74,7 @@
- 
- #[derive(Debug, Args)]
- pub(crate) struct TokenArg {
-+    #[arg(env = "P2P_ETCAT_TARGET")]
-     pub(crate) token: String,
- }
- 
-@@ -83,6 +84,7 @@
-     pub(crate) until_direct: bool,
-     #[arg(long, default_value = "10s")]
-     pub(crate) timeout: String,
-+    #[arg(env = "P2P_ETCAT_TARGET")]
-     pub(crate) token: String,
  }
  

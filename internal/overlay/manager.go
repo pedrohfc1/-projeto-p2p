@@ -88,6 +88,11 @@ func (c *child) alive() bool {
 	}
 }
 
+type mediaSession struct {
+	child  *child
+	local  int
+	remote int
+}
 type session struct {
 	child *child
 	socks string
@@ -112,6 +117,7 @@ type Manager struct {
 	store                     saved
 	token                     string
 	sessions                  map[string]*session
+	media                     map[string]*mediaSession
 	paths                     map[string]pathSample
 	server                    *child
 	restarts                  int
@@ -134,7 +140,7 @@ func Open(parent context.Context, profile, binary, registry string) (*Manager, e
 		return nil, e
 	}
 	ctx, cancel := context.WithCancel(parent)
-	m := &Manager{ctx: ctx, cancel: cancel, profile: profile, binary: binary, store: s, sessions: map[string]*session{}, paths: map[string]pathSample{}, probe: make(chan struct{}, 1)}
+	m := &Manager{ctx: ctx, cancel: cancel, profile: profile, binary: binary, store: s, sessions: map[string]*session{}, media: map[string]*mediaSession{}, paths: map[string]pathSample{}, probe: make(chan struct{}, 1)}
 	if registry == "" {
 		registry = DefaultRegistry
 	}
@@ -152,13 +158,14 @@ func Open(parent context.Context, profile, binary, registry string) (*Manager, e
 	}
 	return m, nil
 }
-func (m *Manager) spawn(args []string, target string, server bool) (*child, <-chan string, error) {
+func (m *Manager) spawn(args []string, target string, server bool, extraEnv ...string) (*child, <-chan string, error) {
 	if e := VerifyBinary(m.binary); e != nil {
 		return nil, nil, e
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
 	cmd := exec.CommandContext(ctx, m.binary, args...)
 	cmd.Dir = m.profile
+	cmd.Env = append(cmd.Env, extraEnv...)
 	for _, v := range os.Environ() {
 		k := strings.ToUpper(strings.SplitN(v, "=", 2)[0])
 		if strings.HasPrefix(k, "ET_") || strings.HasPrefix(k, "ETCAT_") || strings.HasPrefix(k, "TAILCAT_") || strings.HasPrefix(k, "P2P_ETCAT_") {
@@ -262,7 +269,14 @@ func waitReady(ctx context.Context, c *child, ready <-chan string) (string, erro
 		return "", errors.New("integrated relay startup timed out")
 	}
 }
-func (m *Manager) Start(ctx context.Context, appPort int) error {
+func (m *Manager) Start(ctx context.Context, appPort int, mediaPorts ...int) error {
+	extraEnv := []string{}
+	if len(mediaPorts) > 0 {
+		if mediaPorts[0] < 1024 || mediaPorts[0] > 65535 {
+			return errors.New("invalid media UDP port")
+		}
+		extraEnv = append(extraEnv, "P2P_ETCAT_UDP_SERVE="+strconv.Itoa(mediaPorts[0]))
+	}
 	if appPort < 1024 || appPort > 65535 {
 		return errors.New("integrated beta requires unprivileged application port")
 	}
@@ -281,7 +295,7 @@ func (m *Manager) Start(ctx context.Context, appPort int) error {
 			var c *child
 			var ready <-chan string
 			if e == nil {
-				c, ready, e = m.spawn([]string{"--key", path, "--relay-file", m.registry, "--serve", strconv.Itoa(appPort), "--json", "--full-address"}, "", true)
+				c, ready, e = m.spawn([]string{"--key", path, "--relay-file", m.registry, "--serve", strconv.Itoa(appPort), "--json", "--full-address"}, "", true, extraEnv...)
 			}
 			var token string
 			if e == nil {
@@ -365,6 +379,10 @@ func (m *Manager) Register(id, token string) error {
 		return e
 	}
 	if old != "" && old != token {
+		if media := m.media[id]; media != nil {
+			media.child.stop()
+			delete(m.media, id)
+		}
 		if s := m.sessions[id]; s != nil {
 			s.child.stop()
 			delete(m.sessions, id)
@@ -467,6 +485,9 @@ func (m *Manager) Close() {
 		m.mu.Lock()
 		server := m.server
 		clients := []*child{}
+		for _, s := range m.media {
+			clients = append(clients, s.child)
+		}
 		for _, s := range m.sessions {
 			clients = append(clients, s.child)
 		}

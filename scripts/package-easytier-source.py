@@ -23,7 +23,7 @@ with zipfile.ZipFile(a.output,"w",zipfile.ZIP_DEFLATED,compresslevel=6,strict_ti
 Etcat ccb45cd84c20b2aa1e6615a3f62a83827e961695 Apache-2.0.
 EasyTier 164e2db6aecd13117d840821d5b889b51cb7c463 LGPL-3.0.
 Changes: no TUN/capture/UPnP; token via environment; path monitoring;
-independent client instance/address allocation; compatible dependency updates.
+independent client instance/address allocation; scoped userspace UDP forwarding; compatible dependency updates.
 This archive accompanies every private installer and is installed alongside it.
 You may modify/rebuild/replace the LGPL components and relink this helper.
 Runtime verifies the helper digest: rebuild Projeto P2P with the new manifest

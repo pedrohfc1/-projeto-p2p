@@ -83,6 +83,13 @@ func (c *Core) synchronize(s localdb.Settings) {
 	c.networkErr = ""
 }
 func (c *Core) stopNode() {
+	if c.node != nil {
+		c.node.SetVoiceHandler(nil)
+	}
+	if c.voice != nil {
+		c.voice.Close()
+		c.voice = nil
+	}
 	if c.integrated != nil {
 		c.integrated.Close()
 		c.integrated = nil

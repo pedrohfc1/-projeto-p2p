@@ -362,6 +362,13 @@ func applyCommunityTx(tx *bolt.Tx, c community.Commit, applied *bool) error {
 	if e = ids.Put([]byte(c.Operation.ID), seqkey(c.Sequence)); e != nil {
 		return e
 	}
+	heads, e := sub(tx, "community_heads", r.ID)
+	if e != nil {
+		return e
+	}
+	if e = heads.Put([]byte(c.Hash), seqkey(c.Sequence)); e != nil {
+		return e
+	}
 	if c.Operation.Kind == community.Text {
 		parent, e := sub(tx, "community_messages", r.ID)
 		if e != nil {
