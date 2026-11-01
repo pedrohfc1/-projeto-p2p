@@ -1,0 +1,146 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -23,9 +23,7 @@
+     "smoltcp",
+     "socks5",
+     "tcp-hole-punch",
+-    "upnp",
+     "websocket",
+-    "zstd",
+ ] }
+ easytier-core = { git = "https://github.com/EasyTier/EasyTier.git", rev = "164e2db6aecd13117d840821d5b889b51cb7c463", default-features = false, features = [
+     "aes-gcm",
+@@ -78,3 +76,8 @@
+ pedantic = { level = "warn", priority = -1 }
+ module_name_repetitions = "allow"
+ must_use_candidate = "allow"
++
++[patch."https://github.com/EasyTier/EasyTier.git"]
++easytier = { path = "../../easytier-minimal/easytier" }
++easytier-core = { path = "../../easytier-minimal/easytier-core" }
++easytier-proto = { path = "../../easytier-minimal/easytier-proto" }
+--- a/src/app.rs
++++ b/src/app.rs
+@@ -706,7 +706,8 @@
+ }
+ 
+ struct ClientSession {
+-    _mesh: MeshInstance,
++    p2p_server_ip: Ipv4Addr,
++    mesh: MeshInstance,
+     gateway: SocketAddr,
+     network_name: String,
+     server_fingerprint: [u8; 16],
+@@ -744,7 +745,8 @@
+         let server_fingerprint = token.server_fingerprint()?;
+         wait_for_gateway_route(&mesh, server_ip, Duration::from_secs(30)).await?;
+         Ok(Self {
+-            _mesh: mesh,
++            p2p_server_ip: token.server_virtual_ipv4()?,
++            mesh,
+             gateway: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), local_port),
+             network_name,
+             server_fingerprint,
+@@ -822,7 +824,11 @@
+ }
+ 
+ async fn run_socks(args: &crate::cli::SocksArgs, cli: &Cli) -> Result<()> {
+-    let mut program = args.args.as_slice();
++    let mut p2p_args = args.args.clone();
++    if let Ok(target) = std::env::var("P2P_ETCAT_TARGET") {
++        p2p_args.insert(0, target);
++    }
++    let mut program = p2p_args.as_slice();
+     let mut executable = program.first().and_then(resolve_executable);
+     let fixed_token = if let Some(first) = program.first()
+         && (has_token_prefix(first) || (first.contains('.') && executable.is_none()))
+@@ -881,6 +887,20 @@
+         return Ok(());
+     }
+ 
++    if let Some(session) = fixed.clone() {
++        tokio::spawn(async move {
++            loop {
++                let routes = session.mesh.core().route_snapshots().await;
++                let route = routes.iter().find(|route| route.ipv4_addr.as_ref()
++                    .and_then(|inet| inet.address.as_ref())
++                    .is_some_and(|address| Ipv4Addr::from(address.addr) == session.p2p_server_ip));
++                let (path, latency) = route.map(|r| (if r.cost == 1 { "direct" } else { "relay" }, r.path_latency))
++                    .unwrap_or(("unknown", 0));
++                println!("{}", serde_json::json!({"p2pPath":path,"latencyMs":latency}));
++                tokio::time::sleep(Duration::from_secs(2)).await;
++            }
++        });
++    }
+     eprintln!("SOCKS running at {proxy_url}");
+     serve_socks(listener, fixed, options).await
+ }
+--- a/src/network.rs
++++ b/src/network.rs
+@@ -12,7 +12,7 @@
+     },
+     instance::factory::{NativeCoreInstance, create_native_instance},
+ };
+-use sha2::{Digest, Sha256};
++
+ 
+ use crate::{
+     identity::{ServerIdentity, easytier_credential_secret, secure_mode},
+@@ -141,12 +141,15 @@
+     forwards: Vec<PortForwardConfig>,
+     socks5: Option<SocketAddr>,
+ ) -> Result<TomlConfig> {
+-    let config = base_config(network_name, client_ipv4, "etcat-client", relay)?;
++    let random = uuid::Uuid::new_v4();
++    let bytes = random.as_bytes();
++    let distinct_ipv4 = Ipv4Addr::new(10, bytes[0], bytes[1], 2 + bytes[2] % 252);
++    anyhow::ensure!(distinct_ipv4 != client_ipv4, "retry client address allocation");
++    let config = base_config(network_name, distinct_ipv4, "etcat-client", relay)?;
+     let credential_secret = easytier_credential_secret(credential_secret)?;
+-    let digest = Sha256::digest(credential_secret.as_bytes());
+-    let mut instance_id = [0_u8; 16];
+-    instance_id.copy_from_slice(&digest[..16]);
+-    config.set_id(uuid::Uuid::from_bytes(instance_id));
++    // A reusable invitation may have multiple simultaneous clients. Credential
++    // authentication remains unchanged; instance identity/address must not collide.
++    config.set_id(uuid::Uuid::new_v4());
+     config.set_network_identity(NetworkIdentity::new_credential(network_name.to_owned()));
+     config.set_secure_mode(Some(secure_mode(&credential_secret)?));
+     config.set_acl(Some(build_client_acl()));
+@@ -181,6 +184,8 @@
+     );
+     let mut flags = config.get_flags();
+     flags.no_tun = true;
++    flags.disable_upnp = true;
++    flags.enable_ipv6 = false;
+     flags.use_smoltcp = true;
+     flags.enable_encryption = true;
+     flags.need_p2p = true;
+@@ -274,7 +279,8 @@
+         // never be allowed to publish a competing route themselves.
+         allowed_proxy_cidrs: Vec::new(),
+         expiry_unix,
+-        reusable: false,
++        // Sharing a signed app invitation is intentional; libp2p authenticates each peer.
++        reusable: true,
+     })
+ }
+ 
+--- a/src/cli.rs
++++ b/src/cli.rs
+@@ -74,6 +74,7 @@
+ 
+ #[derive(Debug, Args)]
+ pub(crate) struct TokenArg {
++    #[arg(env = "P2P_ETCAT_TARGET")]
+     pub(crate) token: String,
+ }
+ 
+@@ -83,6 +84,7 @@
+     pub(crate) until_direct: bool,
+     #[arg(long, default_value = "10s")]
+     pub(crate) timeout: String,
++    #[arg(env = "P2P_ETCAT_TARGET")]
+     pub(crate) token: String,
+ }
+ 

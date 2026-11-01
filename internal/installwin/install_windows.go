@@ -36,7 +36,7 @@ func Message(text string, question bool) bool {
 		flags = 0x24
 	}
 	t, _ := windows.UTF16PtrFromString(text)
-	title, _ := windows.UTF16PtrFromString("Projeto P2P â€” InstalaÃ§Ã£o 0.4")
+	title, _ := windows.UTF16PtrFromString("Projeto P2P — Instalação 0.5.2")
 	result, _, _ := windows.NewLazySystemDLL("user32.dll").NewProc("MessageBoxW").Call(0, uintptr(unsafe.Pointer(t)), uintptr(unsafe.Pointer(title)), flags)
 	return !question || result == 6
 }
@@ -106,12 +106,21 @@ func write(path string, data []byte) error {
 	to, _ := windows.UTF16PtrFromString(path)
 	return windows.MoveFileEx(from, to, windows.MOVEFILE_REPLACE_EXISTING|windows.MOVEFILE_WRITE_THROUGH)
 }
-func Install(app, uninstaller, license, thirdParty []byte, desktopLink bool) error {
+func Install(app, uninstaller, license, thirdParty, helper, source []byte, desktopLink bool) error {
 	dir, e := Folder()
 	if e != nil {
 		return e
 	}
 	if e = os.MkdirAll(dir, 0700); e != nil {
+		return e
+	}
+	if e = os.MkdirAll(filepath.Join(dir, "easytier"), 0700); e != nil {
+		return e
+	}
+	if e = write(filepath.Join(dir, "easytier", "etcat-p2p.exe"), helper); e != nil {
+		return fmt.Errorf("feche o aplicativo antes de atualizar o auxiliar: %w", e)
+	}
+	if e = write(filepath.Join(dir, "EasyTier-corresponding-source.zip"), source); e != nil {
 		return e
 	}
 	start, desktop, e := locations()
@@ -187,10 +196,10 @@ func EnsureRuntime(bootstrap []byte) error {
 		return e
 	}
 	if e = exec.Command(exe, "/silent", "/install").Run(); e != nil {
-		return fmt.Errorf("instalaÃ§Ã£o WebView2 falhou; requer internet: %w", e)
+		return fmt.Errorf("instalação WebView2 falhou; requer internet: %w", e)
 	}
 	if !RuntimeInstalled() {
-		return fmt.Errorf("WebView2 nÃ£o foi detectado apÃ³s instalaÃ§Ã£o")
+		return fmt.Errorf("WebView2 não foi detectado após instalação")
 	}
 	return nil
 }
@@ -214,7 +223,7 @@ func Uninstall() error {
 	if e != nil {
 		return e
 	}
-	for _, p := range []string{filepath.Join(start, Product+".lnk"), filepath.Join(desktop, Product+".lnk"), filepath.Join(dir, "LICENSE.txt"), filepath.Join(dir, "THIRD_PARTY_LICENSES.zip")} {
+	for _, p := range []string{filepath.Join(dir, "easytier", "etcat-p2p.exe"), filepath.Join(dir, "EasyTier-corresponding-source.zip"), filepath.Join(start, Product+".lnk"), filepath.Join(desktop, Product+".lnk"), filepath.Join(dir, "LICENSE.txt"), filepath.Join(dir, "THIRD_PARTY_LICENSES.zip")} {
 		if e = os.Remove(p); e != nil && !os.IsNotExist(e) {
 			return e
 		}

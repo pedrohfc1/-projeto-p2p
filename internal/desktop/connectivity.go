@@ -37,6 +37,10 @@ func (c *Core) synchronize(s localdb.Settings) {
 	if c.ctx.Err() != nil {
 		return
 	}
+	if mode(s) == "integrated" {
+		c.synchronizeIntegrated(s)
+		return
+	}
 	items, e := c.enumerate()
 	if e != nil {
 		c.selection = adapters.Selection{Mode: mode(s), Adapters: []adapters.Info{}, Message: "Não foi possível ler adaptadores: " + e.Error()}
@@ -79,6 +83,10 @@ func (c *Core) synchronize(s localdb.Settings) {
 	c.networkErr = ""
 }
 func (c *Core) stopNode() {
+	if c.integrated != nil {
+		c.integrated.Close()
+		c.integrated = nil
+	}
 	if c.groups != nil {
 		c.groups.Attach(nil, c.selection.Mode)
 	}
@@ -181,6 +189,12 @@ type ConnectionTest struct {
 }
 
 func requiredMode(scope string, s localdb.Settings) string {
+	if scope == "integrated" && mode(s) != "integrated" {
+		return "integrated"
+	}
+	if (scope == "" || scope == "auto") && mode(s) == "integrated" {
+		return "auto"
+	}
 	if adapters.IsVPN(scope) && mode(s) != scope && mode(s) != "interface" {
 		return scope
 	}
@@ -249,6 +263,9 @@ func (c *Core) probeLocked(ctx context.Context, info peer.AddrInfo, r *Connectio
 			r.Message = "Handshake autenticado, mas o ping libp2p falhou: " + value.Error.Error()
 			return
 		}
+		if mode(sForProbe(c)) == "integrated" && c.integrated != nil {
+			r.Path = c.integrated.ProbePath(ctx, info.ID.String())
+		}
 		r.Connected = true
 		r.RTTMillis = value.RTT.Milliseconds()
 		r.RTTMicros = value.RTT.Microseconds()
@@ -308,7 +325,11 @@ func (c *Core) testLocked(id string) (r ConnectionTest) {
 			}
 		}
 	}
-	ctx, cancel := context.WithTimeout(c.ctx, 8*time.Second)
+	timeout := 8 * time.Second
+	if c.integrated != nil {
+		timeout = 45 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(c.ctx, timeout)
 	defer cancel()
 	c.probeLocked(ctx, info, &r)
 	if r.Connected {
@@ -397,7 +418,11 @@ func (c *Core) ConnectInvite(raw string) (ConnectionTest, error) {
 	if p.ID == c.node.Host.ID() {
 		return ConnectionTest{}, errors.New("este endereço é do próprio perfil")
 	}
-	ctx, cancel := context.WithTimeout(c.ctx, 8*time.Second)
+	timeout := 8 * time.Second
+	if c.integrated != nil {
+		timeout = 45 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(c.ctx, timeout)
 	defer cancel()
 	c.probeLocked(ctx, p, &r)
 	if !r.Authenticated {
@@ -427,3 +452,5 @@ func (c *Core) ConnectInvite(raw string) (ConnectionTest, error) {
 	c.refreshAddresses()
 	return r, nil
 }
+
+func sForProbe(c *Core) localdb.Settings { s, _ := c.db.Settings(); return s }

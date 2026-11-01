@@ -18,6 +18,14 @@ try {
  if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'Microsoft') {throw 'Bootstrapper WebView2 sem assinatura Microsoft vÃ¡lida.'}
  python scripts/collect-licenses.py
  if ($LASTEXITCODE -ne 0) {throw 'Coleta de licenças falhou'}
+ $helper='build/bin/easytier/etcat-p2p.exe'
+ $expected=(Get-Content internal/overlay/manifest.json -Raw | ConvertFrom-Json).sha256
+ if ((Get-FileHash $helper -Algorithm SHA256).Hash.ToLower() -ne $expected) {throw 'Auxiliar diferente do manifesto auditado'}
+ if (-not(Test-Path 'dist/release/EasyTier-corresponding-source.zip')) {throw 'Fontes correspondentes LGPL obrigatorias'}
+ python scripts/audit-pe.py $helper build/bin/ProjetoP2P.exe
+ if ($LASTEXITCODE -ne 0) {throw 'Auditoria PE falhou'}
+ Copy-Item $helper cmd/p2p-setup/payload/etcat-p2p.exe -Force
+ Copy-Item dist/release/EasyTier-corresponding-source.zip cmd/p2p-setup/payload/EasyTier-corresponding-source.zip -Force
  Copy-Item LICENSE cmd/p2p-setup/payload/LICENSE.txt -Force
  Copy-Item dist/release/ProjetoP2P-v0.5.2-licencas-windows.zip cmd/p2p-setup/payload/THIRD_PARTY_LICENSES.zip -Force
  $legacyPayload=Join-Path (Resolve-Path cmd/p2p-setup/payload).Path 'ProjetoP2P.exe'
@@ -44,5 +52,6 @@ try {
  $report=Get-Content $output -Raw | ConvertFrom-Json
  if ($report.appSHA256 -ne (Get-FileHash build/bin/ProjetoP2P.exe -Algorithm SHA256).Hash.ToLower() -or ($report.hamachiBundled -or $report.radminBundled -or $report.vpnBundled)) {throw 'Payload do instalador invÃ¡lido'}
  if ($report.licenseSHA256 -ne (Get-FileHash LICENSE -Algorithm SHA256).Hash.ToLower() -or $report.thirdPartySHA256 -ne (Get-FileHash cmd/p2p-setup/payload/THIRD_PARTY_LICENSES.zip -Algorithm SHA256).Hash.ToLower()) {throw 'Licenças do instalador inválidas'}
+ if (-not $report.integratedHelperBundled -or $report.helperSHA256 -ne $expected) {throw "Auxiliar nao corresponde ao setup"}
  $report | ConvertTo-Json
 } finally {$env:CGO_ENABLED=$oldCGO;$env:GOOS=$oldOS;$env:GOARCH=$oldArch;Pop-Location}

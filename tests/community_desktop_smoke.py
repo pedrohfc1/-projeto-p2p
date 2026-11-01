@@ -7,9 +7,12 @@ from webui_smoke import Bridge
 def port():
  with socket.socket() as s:s.bind(('127.0.0.1',0));return s.getsockname()[1]
 def main():
- ap=argparse.ArgumentParser();ap.add_argument('binary');ap.add_argument('--radmin',action='store_true');ap.add_argument('--metrics');args=ap.parse_args()
+ ap=argparse.ArgumentParser();ap.add_argument('binary');ap.add_argument('--radmin',action='store_true');ap.add_argument('--integrated',action='store_true');ap.add_argument('--metrics');args=ap.parse_args()
  binary=pathlib.Path(args.binary).resolve();parent=pathlib.Path('data').resolve();parent.mkdir(exist_ok=True);processes=[]
  def configure(b,name):
+  if args.integrated:
+   assert not args.radmin,'Choose one transport'
+   b.rpc('SaveSettings',Settings={'name':name,'mode':'integrated','port':port()});return True
   state=b.rpc('State',ID='');items=state['connectivity']['adapters']
   if args.radmin:items=[i for i in items if i['provider']=='radmin' and i['up'] and any(ip.startswith('26.') for ip in i['ipv4'])];mode='radmin'
   else:items=[i for i in items if i['up'] and '127.0.0.1' in i['ipv4']];mode='interface'
@@ -69,9 +72,9 @@ def main():
    reject(member,'SyncCommunity',ID=group);view=member.rpc('CommunityState',ID=group,Channel=channel,Before=0);assert view['community']['denied']
    reject(member,'CommunityAction',ID=group,Kind='message.text',Body={'channelId':channel,'text':'não autorizado'})
    if args.metrics:
-    report={'version':'0.5.2','scenario':'3 production backend processes over '+('real Radmin adapter, same PC' if args.radmin else 'loopback')+'; no native GUI measurement','durationSeconds':time.monotonic()-started,'ownerRestartedDuringScenario':True,'idleOwnerBeforeCommunities':idle,'afterScenario':metrics,'messageCommitRpcRoundtripMs':roundtrip,'manualPingMs':diagnostics.get('rttMicros',diagnostics['rttMillis']*1000)/1000,'renderCommitMs':None,'renderReason':'instrumented in UI, not measured by this API-only test','packetLoss':None,'packetLossReason':'TCP counters do not measure UDP loss'}
+    report={'version':'0.5.2','scenario':'3 production backend processes over '+('integrated EasyTier via community relay, same PC' if args.integrated else 'real Radmin adapter, same PC' if args.radmin else 'loopback')+'; no native GUI measurement','durationSeconds':time.monotonic()-started,'ownerRestartedDuringScenario':True,'idleOwnerBeforeCommunities':idle,'afterScenario':metrics,'messageCommitRpcRoundtripMs':roundtrip,'manualPingMs':diagnostics.get('rttMicros',diagnostics['rttMillis']*1000)/1000,'renderCommitMs':None,'renderReason':'instrumented in UI, not measured by this API-only test','packetLoss':None,'packetLossReason':'TCP counters do not measure UDP loss'}
     pathlib.Path(args.metrics).write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
-   print('PASS: three real desktop services, communities, owner-signed invites, roles, channel text, sync, durable outbox, restart, deduplication, revocation and preserved direct chat; '+('real Radmin adapter on one PC' if args.radmin else 'loopback'))
+   print('PASS: three real desktop services, communities, owner-signed invites, roles, channel text, sync, durable outbox, restart, deduplication, revocation and preserved direct chat; '+('integrated EasyTier, same PC' if args.integrated else 'real Radmin adapter on one PC' if args.radmin else 'loopback'))
   finally:
    for b in processes:b.close()
 if __name__=='__main__':main()

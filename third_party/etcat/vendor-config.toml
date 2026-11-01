@@ -1,0 +1,23 @@
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/EasyTier/service-manager-rs.git?branch=main"]
+git = "https://github.com/EasyTier/service-manager-rs.git"
+branch = "main"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/EasyTier/tokio-websockets"]
+git = "https://github.com/EasyTier/tokio-websockets"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/easytier/thunk.git"]
+git = "https://github.com/easytier/thunk.git"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/smoltcp-rs/smoltcp.git?rev=0a926767a68bc88d5512afefa7529c5ecdade4ea"]
+git = "https://github.com/smoltcp-rs/smoltcp.git"
+rev = "0a926767a68bc88d5512afefa7529c5ecdade4ea"
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "REPLACE_WITH_ABSOLUTE_VENDOR_DIRECTORY"

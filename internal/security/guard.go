@@ -41,3 +41,23 @@ func (g *Guard) Accept(sender, id string, now time.Time) bool {
 	g.rate[sender] = now
 	return true
 }
+
+// Retry permits a bounded acknowledgement of an already committed message.
+// The caller must independently compare the complete immutable message digest.
+func (g *Guard) Retry(sender, id string, now time.Time) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	at, ok := g.seen[sender+":"+id]
+	if !ok || now.Sub(at) > 5*time.Minute || now.Sub(g.rate[sender]) < 100*time.Millisecond {
+		return false
+	}
+	g.rate[sender] = now
+	return true
+}
+
+// Forget permits retry after persistence failed; it preserves the rate limit.
+func (g *Guard) Forget(sender, id string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	delete(g.seen, sender+":"+id)
+}

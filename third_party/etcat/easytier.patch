@@ -1,0 +1,29 @@
+--- a/easytier/Cargo.toml
++++ b/easytier/Cargo.toml
+@@ -232,7 +232,7 @@
+ [target.'cfg(any(target_os = "linux"))'.dependencies]
+ netlink-sys = { version = "0.8.7", optional = true }
+ [target.'cfg(all(windows, any(target_arch = "x86_64", target_arch = "x86")))'.dependencies]
+-windivert = { git = "https://github.com/EasyTier/windivert-rust.git", rev = "adcc56d1550f7b5377ec2b3429f413ee24a77375", features = [
++windivert = { optional = true, git = "https://github.com/EasyTier/windivert-rust.git", rev = "adcc56d1550f7b5377ec2b3429f413ee24a77375", features = [
+     "static",
+ ] }
+ 
+@@ -357,7 +357,7 @@
+ aes-gcm = ["easytier-core/aes-gcm"]
+ openssl-crypto = ["easytier-core/openssl-crypto"]
+ ring-crypto = ["easytier-core/ring-crypto"]
+-tun = ["dep:tun", "linux-netlink"]
++tun = ["dep:windivert", "dep:tun", "linux-netlink"]
+ linux-netlink = ["dep:netlink-sys"]
+ proxy-cidr-monitor = ["easytier-core/proxy-cidr-monitor"]
+ websocket = [
+@@ -392,7 +392,7 @@
+     "easytier-core/proxy-packet",
+     "easytier-proto/magic-dns",
+ ]
+-faketcp = [
++faketcp = ["dep:windivert", 
+     "dep:flume",
+     "dep:pnet_datalink",
+     "dep:smoltcp",

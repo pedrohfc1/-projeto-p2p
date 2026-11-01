@@ -1,0 +1,32 @@
+[
+  {
+    "file": "ProjetoP2P.exe",
+    "sha256": "874d540665ee32de4c87dc57f9201a12a58b2cdb9e257280f969bdd6ba3033bc",
+    "imports": [
+      "kernel32.dll"
+    ],
+    "delayImports": [],
+    "forbiddenReferences": []
+  },
+  {
+    "file": "etcat-p2p.exe",
+    "sha256": "472df99fa0d9d365957b84c548a8228a655de6984d67e971654fe893c3626d10",
+    "imports": [
+      "kernel32.dll",
+      "kernel32.dll",
+      "advapi32.dll",
+      "bcryptprimitives.dll",
+      "ntdll.dll",
+      "oleaut32.dll",
+      "iphlpapi.dll",
+      "ws2_32.dll",
+      "bcrypt.dll",
+      "combase.dll",
+      "api-ms-win-core-synch-l1-2-0.dll",
+      "shell32.dll",
+      "msvcrt.dll"
+    ],
+    "delayImports": [],
+    "forbiddenReferences": []
+  }
+]

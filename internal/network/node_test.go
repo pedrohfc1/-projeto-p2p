@@ -173,8 +173,13 @@ func TestThreeNodesDiscoveryRecovery(t *testing.T) {
 	}
 	<-c.Messages
 	time.Sleep(150 * time.Millisecond)
-	if transmit() {
-		t.Fatal("replay accepted")
+	if !transmit() {
+		t.Fatal("committed replay not acknowledged")
+	}
+	select {
+	case <-c.Messages:
+		t.Fatal("replay delivered twice")
+	default:
 	}
 	// Unexpected peer loss, same identity restarted at a new ephemeral port.
 	oldID := c.Host.ID()

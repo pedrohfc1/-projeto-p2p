@@ -83,7 +83,12 @@ func (s *Service) watch() {
 				if r.Owner == s.id {
 					continue
 				}
-				ctx, cancel := context.WithTimeout(s.ctx, 8*time.Second)
+				timeout := 8 * time.Second
+				_, scope := s.environment()
+				if scope == "integrated" {
+					timeout = 40 * time.Second
+				}
+				ctx, cancel := context.WithTimeout(s.ctx, timeout)
 				_ = s.Sync(ctx, r.ID)
 				cancel()
 			}
@@ -178,7 +183,7 @@ func (s *Service) Handle(ctx context.Context, remote string, req community.Reque
 		if t == nil {
 			return errorResponse("offline", "network unavailable")
 		}
-		raw, e := community.NewInvite(s.key, r.State, scope, t.Addresses())
+		raw, e := community.NewInvite(s.key, r.State, scope, t.Addresses(), invitationRoute(t))
 		if e != nil {
 			return errorResponse("invalid", e.Error())
 		}
@@ -277,6 +282,16 @@ func (s *Service) Join(ctx context.Context, raw string) (Receipt, error) {
 	old, oldErr := s.db.Community(ticket.CommunityID)
 	if oldErr == nil && (old.Owner != ticket.Owner || old.Root != ticket.Root) {
 		return result, errors.New("community owner/root does not match pinned identity")
+	}
+	if ticket.Scope == "integrated" {
+		t, _ := s.environment()
+		register, ok := t.(interface{ RegisterInvitationRoute(string, string) error })
+		if !ok {
+			return result, errors.New("integrated transport unavailable")
+		}
+		if e = register.RegisterInvitationRoute(ticket.Owner, ticket.Route); e != nil {
+			return result, e
+		}
 	}
 	record := localdb.CommunityRecord{ID: ticket.CommunityID, Owner: ticket.Owner, Root: ticket.Root, Name: ticket.Name, Scope: ticket.Scope, Addresses: ticket.Addresses}
 	if ticket.Owner == s.id && oldErr != nil {
@@ -527,4 +542,11 @@ func (s *Service) Sync(ctx context.Context, id string) error {
 }
 func (s *Service) Discard(id, op string) error {
 	return s.db.CommunityPendingStatus(id, op, "delete", "")
+}
+
+func invitationRoute(t Transport) string {
+	if v, ok := t.(interface{ InvitationRoute() string }); ok {
+		return v.InvitationRoute()
+	}
+	return ""
 }

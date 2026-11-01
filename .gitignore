@@ -42,3 +42,5 @@ Desktop.ini
 
 /cmd/p2p-setup/payload/LICENSE.txt
 /cmd/p2p-setup/payload/*.zip
+
+/frontend/package.json.md5

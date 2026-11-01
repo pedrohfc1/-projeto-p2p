@@ -3,6 +3,7 @@ package network
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,11 +20,13 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	net "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	routing "github.com/libp2p/go-libp2p/p2p/discovery/routing"
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
+	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	relayv2 "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	"github.com/libp2p/go-libp2p/p2p/security/noise"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
@@ -39,23 +42,37 @@ import (
 const Protocol = protocol.ID("/projeto-p2p/text/0.1.0")
 
 type Config struct {
-	DataDir         string
-	Listen          []string
-	Bootstrap       []string
-	Relays          []string
-	RelayServer     bool
-	Interval        time.Duration
-	ForcePrivate    bool
-	ForcePublic     bool
-	OnMessage       func(messaging.Message) error
-	ConnectionGater corecm.ConnectionGater
-	Announce        []string
-	LocalOnly       bool
-	ScopedIP        string
-	ScopedMode      string
-	PublicDiscovery bool
+	IntegratedDialer    tcp.ContextDialer
+	IntegratedAddresses []string
+	InvitationRoute     func() string
+	RegisterRoute       func(string, string) error
+	OverlayPath         func(string) string
+	DataDir             string
+	Listen              []string
+	Bootstrap           []string
+	Relays              []string
+	RelayServer         bool
+	Interval            time.Duration
+	ForcePrivate        bool
+	ForcePublic         bool
+	OnMessage           func(messaging.Message) error
+	ConnectionGater     corecm.ConnectionGater
+	Announce            []string
+	LocalOnly           bool
+	ScopedIP            string
+	ScopedMode          string
+	PublicDiscovery     bool
+}
+type committedReceipt struct {
+	digest [32]byte
+	at     time.Time
 }
 type Node struct {
+	receiveMu         sync.Mutex
+	committed         map[string]committedReceipt
+	invitationRoute   func() string
+	registerRoute     func(string, string) error
+	overlayPath       func(string) string
 	Host              host.Host
 	DHT               dhtService
 	Messages          chan messaging.Message
@@ -155,14 +172,26 @@ func New(parent context.Context, c Config) (*Node, error) {
 	if !c.LocalOnly {
 		opts = append(opts, libp2p.AddrsFactory(func(as []ma.Multiaddr) []ma.Multiaddr { return withoutVPNAddresses(append(as, announced...)) }))
 	}
-	if c.LocalOnly {
+	if c.IntegratedDialer != nil {
+		announced := []ma.Multiaddr{}
+		for _, raw := range c.IntegratedAddresses {
+			a, e := ma.NewMultiaddr(raw)
+			if e != nil || !endpoint.Allowed(a, "integrated") {
+				rm.Close()
+				cm.Close()
+				return nil, errors.New("invalid integrated announcement")
+			}
+			announced = append(announced, a)
+		}
+		opts = append(opts, libp2p.WithDialTimeout(45*time.Second), libp2p.SwarmOpts(swarm.WithDialTimeout(40*time.Second), swarm.WithDialTimeoutLocal(40*time.Second)), libp2p.DisableRelay(), libp2p.NoTransports, libp2p.Transport(tcp.NewTCPTransport, tcp.WithConnectionTimeout(35*time.Second), tcp.WithDialerForAddr(func(ma.Multiaddr) (tcp.ContextDialer, error) { return c.IntegratedDialer, nil })), libp2p.ForceReachabilityPrivate(), libp2p.AddrsFactory(func([]ma.Multiaddr) []ma.Multiaddr { return announced }))
+	} else if c.LocalOnly {
 		opts = append(opts, libp2p.DisableRelay(), libp2p.NoTransports, libp2p.Transport(tcp.NewTCPTransport, tcp.WithDialerForAddr(func(ma.Multiaddr) (tcp.ContextDialer, error) {
 			return &stdnet.Dialer{LocalAddr: &stdnet.TCPAddr{IP: stdnet.ParseIP(c.ScopedIP)}, Timeout: 8 * time.Second}, nil
 		})), libp2p.ConnectionGater(interfaceGate{ip: c.ScopedIP, scope: c.ScopedMode}), libp2p.ForceReachabilityPrivate(), libp2p.AddrsFactory(func(as []ma.Multiaddr) []ma.Multiaddr {
 			return scopedAddresses(as, c.ScopedIP, c.Listen)
 		}))
 	} else {
-		opts = append(opts, libp2p.NATPortMap(), libp2p.EnableHolePunching(), libp2p.EnableRelay())
+		opts = append(opts, libp2p.EnableHolePunching(), libp2p.EnableRelay())
 	}
 	if c.ConnectionGater != nil && !c.LocalOnly {
 		opts = append(opts, libp2p.ConnectionGater(c.ConnectionGater))
@@ -228,6 +257,9 @@ func New(parent context.Context, c Config) (*Node, error) {
 		return nil, err
 	}
 	n := &Node{Host: h, DHT: kd, Messages: make(chan messaging.Message, 64), Events: make(chan string, 32), ctx: ctx, cancel: cancel, known: map[peer.ID]peer.AddrInfo{}, relays: source, relayServer: c.RelayServer, reachability: "desconhecida", onMessage: c.OnMessage}
+	n.invitationRoute = c.InvitationRoute
+	n.registerRoute = c.RegisterRoute
+	n.overlayPath = c.OverlayPath
 	n.relayMetrics = metrics
 	n.traffic = traffic
 	n.localOnly = c.LocalOnly
@@ -329,6 +361,7 @@ func (n *Node) remember(p peer.AddrInfo) {
 		}
 		p.Addrs = merged
 		n.known[p.ID] = p
+		n.Host.Peerstore().AddAddrs(p.ID, p.Addrs, peerstore.PermanentAddrTTL)
 	}
 }
 func (n *Node) Connect(ctx context.Context, p peer.AddrInfo) error {
@@ -374,7 +407,11 @@ func (n *Node) run(interval time.Duration) {
 				continue
 			}
 			attempts++
-			ctx, cancel := context.WithTimeout(n.ctx, 3*time.Second)
+			timeout := 3 * time.Second
+			if n.overlayPath != nil {
+				timeout = 40 * time.Second
+			}
+			ctx, cancel := context.WithTimeout(n.ctx, timeout)
 			err := n.Host.Connect(ctx, p)
 			cancel()
 			if err != nil {
@@ -451,28 +488,56 @@ func (n *Node) receive(s net.Stream) {
 		s.Reset()
 		return
 	}
-	if !n.guard.Accept(m.From, m.ID, time.Now()) {
+	// Serialize commit/receipt decisions so an ACK never precedes persistence.
+	n.receiveMu.Lock()
+	defer n.receiveMu.Unlock()
+	now := time.Now()
+	key := m.From + ":" + m.ID
+	canonical, _ := json.Marshal(m)
+	digest := sha256.Sum256(canonical)
+	if n.committed == nil {
+		n.committed = map[string]committedReceipt{}
+	}
+	for k, v := range n.committed {
+		if now.Sub(v.at) > 5*time.Minute {
+			delete(n.committed, k)
+		}
+	}
+	if receipt, ok := n.committed[key]; ok {
+		if receipt.digest == digest && n.guard.Retry(m.From, m.ID, now) {
+			_, _ = s.Write([]byte("OK\n"))
+		} else {
+			s.Reset()
+		}
+		return
+	}
+	if !n.guard.Accept(m.From, m.ID, now) {
 		s.Reset()
 		return
 	}
+	committed := false
 	if n.onMessage != nil {
-		if n.onMessage(m) != nil {
-			s.Reset()
-			return
+		if n.onMessage(m) == nil {
+			committed = true
+			select {
+			case n.Messages <- m:
+			default:
+			}
 		}
+	} else {
 		select {
 		case n.Messages <- m:
+			committed = true
 		default:
 		}
-		_, _ = s.Write([]byte("OK\n"))
+	}
+	if !committed {
+		n.guard.Forget(m.From, m.ID)
+		s.Reset()
 		return
 	}
-	select {
-	case n.Messages <- m:
-		_, _ = s.Write([]byte("OK\n"))
-	default:
-		s.Reset()
-	}
+	n.committed[key] = committedReceipt{digest: digest, at: now}
+	_, _ = s.Write([]byte("OK\n"))
 }
 func (n *Node) Send(ctx context.Context, id peer.ID, text string) error {
 	m, err := n.Compose(id, text)
@@ -527,4 +592,20 @@ func (n *Node) Close() error {
 		_ = n.DHT.Close()
 	}
 	return n.Host.Close()
+}
+
+func (n *Node) InvitationRoute() string {
+	if n.invitationRoute != nil {
+		return n.invitationRoute()
+	}
+	return ""
+}
+func (n *Node) RegisterInvitationRoute(id, route string) error {
+	if route == "" {
+		return nil
+	}
+	if n.registerRoute == nil {
+		return errors.New("integrated transport not active")
+	}
+	return n.registerRoute(id, route)
 }

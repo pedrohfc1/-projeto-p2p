@@ -39,7 +39,7 @@ jobs:
       contents: read
   assemble:
     # Build artifacts remain downloadable when the security gate blocks release.
-    if: always() && needs.version.result == 'success'
+    if: always() && needs.version.result == 'success' && needs.version.outputs.public_allowed == 'true'
     needs: [version, validate-and-build]
     runs-on: ubuntu-24.04
     steps:

@@ -16,19 +16,20 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	"projetop2p/internal/adapters"
 	"projetop2p/internal/communities"
-	"projetop2p/internal/easytierlab"
 	"projetop2p/internal/endpoint"
 	"projetop2p/internal/identity"
 	"projetop2p/internal/invite"
 	"projetop2p/internal/localdb"
 	"projetop2p/internal/messaging"
 	"projetop2p/internal/network"
+	"projetop2p/internal/overlay"
 	"projetop2p/internal/telemetry"
+	"projetop2p/internal/transportaddr"
 )
 
 type Core struct {
-	labMu      sync.Mutex
-	lab        *easytierlab.Lab
+	legacyLabState
+	integrated *overlay.Manager
 	mu         sync.Mutex
 	db         *localdb.DB
 	node       *network.Node
@@ -62,6 +63,7 @@ type State struct {
 	NetworkError string                `json:"networkError"`
 	Diagnostic   *ConnectionTest       `json:"diagnostic"`
 	Communities  []communities.Summary `json:"communities"`
+	Integrated   overlay.State         `json:"integrated"`
 	Metrics      telemetry.Sample      `json:"metrics"`
 }
 
@@ -103,6 +105,31 @@ func OpenWithProvider(parent context.Context, dir string, provider adapters.Prov
 }
 func (c *Core) start(s localdb.Settings) error {
 	cfg := c.config(s)
+	if mode(s) == "integrated" {
+		binaryDir := s.IntegratedBinaryDir
+		if binaryDir == "" {
+			exe, e := os.Executable()
+			if e != nil {
+				return e
+			}
+			binaryDir = filepath.Join(filepath.Dir(exe), "easytier")
+		}
+		registry, e := overlay.Registry(s.IntegratedRelays, s.IntegratedRelayKey)
+		if e != nil {
+			return e
+		}
+		m, e := overlay.Open(c.ctx, c.dir, filepath.Join(binaryDir, "etcat-p2p.exe"), registry)
+		if e != nil {
+			return e
+		}
+		c.integrated = m
+		id, _ := peer.IDFromPrivateKey(c.key)
+		cfg.IntegratedDialer = m
+		cfg.IntegratedAddresses = []string{fmt.Sprintf("/ip6/%s/tcp/%d", transportaddr.LogicalIP(id.String()), port(s))}
+		cfg.InvitationRoute = m.Token
+		cfg.RegisterRoute = m.Register
+		cfg.OverlayPath = m.Path
+	}
 	scope := ""
 	if mode(s) != "auto" {
 		scope = mode(s)
@@ -110,7 +137,19 @@ func (c *Core) start(s localdb.Settings) error {
 	cfg.OnMessage = func(m messaging.Message) error { return c.receiveScoped(m, scope) }
 	n, e := network.New(c.ctx, cfg)
 	if e != nil {
+		if c.integrated != nil {
+			c.integrated.Close()
+			c.integrated = nil
+		}
 		return e
+	}
+	if c.integrated != nil {
+		if e = c.integrated.Start(c.ctx, port(s)); e != nil {
+			c.integrated.Close()
+			c.integrated = nil
+			n.Close()
+			return e
+		}
 	}
 	c.node = n
 	n.SetCommunityHandler(c.groups.Handle)
@@ -169,7 +208,7 @@ func (c *Core) receiveScoped(m messaging.Message, scope string) error {
 }
 func (c *Core) Close() error {
 	c.cancel()
-	c.StopIntegratedLab()
+	c.closeLegacyLab()
 	if c.groups != nil {
 		c.groups.Close()
 	}
@@ -238,6 +277,9 @@ func (c *Core) State(selected string) (State, error) {
 	if !network.DHTEnabled && mode(s.Settings) == "auto" {
 		s.Notice = "DHT provider em quarentena no beta por GO-2024-3218; use convites, bootstraps e relays explícitos."
 	}
+	if c.integrated != nil {
+		s.Integrated = c.integrated.State()
+	}
 	s.Event = c.lastEvent
 	contacts, e := c.db.Contacts()
 	if e != nil {
@@ -300,6 +342,12 @@ func (c *Core) Invite() (string, error) {
 	if len(addrs) > 16 {
 		addrs = addrs[:16]
 	}
+	if mode(s) == "integrated" {
+		if c.integrated == nil {
+			return "", errors.New("integrated connectivity unavailable")
+		}
+		return invite.NewIntegrated(c.key, s.Name, addrs, c.integrated.Token())
+	}
 	if mode(s) != "auto" {
 		return invite.NewScoped(c.key, s.Name, addrs, mode(s))
 	}
@@ -338,6 +386,14 @@ func (c *Core) AddContact(raw string) error {
 	if scope == "" && mode(settings) != "auto" {
 		scope = mode(settings)
 	}
+	if scope == "integrated" {
+		if c.integrated == nil {
+			return errors.New("integrated transport not active")
+		}
+		if e = c.integrated.Register(i.ID, i.Route); e != nil {
+			return e
+		}
+	}
 	p := localdb.Contact{ID: i.ID, Name: i.Name, Addresses: addresses, PublicKey: i.PublicKey, Scope: scope}
 	if e = c.db.Contact(p); e != nil {
 		return e
@@ -348,8 +404,19 @@ func (c *Core) AddContact(raw string) error {
 	return nil
 }
 func validateSettings(s localdb.Settings) error {
-	if mode(s) != "auto" && !adapters.IsVPN(mode(s)) && mode(s) != "interface" {
+	if mode(s) != "auto" && !adapters.IsVPN(mode(s)) && mode(s) != "interface" && mode(s) != "integrated" {
 		return errors.New("modo inválido")
+	}
+	if mode(s) == "integrated" {
+		if port(s) < 1024 {
+			return errors.New("integrated beta requires an unprivileged TCP port")
+		}
+		if len(s.IntegratedBinaryDir) > 1024 {
+			return errors.New("invalid helper path")
+		}
+		if _, e := overlay.Registry(s.IntegratedRelays, s.IntegratedRelayKey); e != nil {
+			return e
+		}
 	}
 	if s.Port < 0 || s.Port > 65535 {
 		return errors.New("porta deve estar entre 1 e 65535")
@@ -423,7 +490,11 @@ func (c *Core) Send(id, text string) error {
 	if e = c.db.AddMessage(record); e != nil {
 		return e
 	}
-	ctx, cancel := context.WithTimeout(c.ctx, 12*time.Second)
+	timeout := 12 * time.Second
+	if c.integrated != nil {
+		timeout = 45 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(c.ctx, timeout)
 	defer cancel()
 	e = c.node.Deliver(ctx, m)
 	record.State = "confirmada"
@@ -441,6 +512,9 @@ func (c *Core) Send(id, text string) error {
 
 func (c *Core) config(s localdb.Settings) network.Config {
 	cfg := network.Config{DataDir: c.dir, Listen: []string{"/ip4/0.0.0.0/tcp/0"}, Bootstrap: s.Bootstrap, Relays: s.Relays, ForcePrivate: s.Assisted, PublicDiscovery: true}
+	if mode(s) == "integrated" {
+		return network.Config{DataDir: c.dir, Listen: []string{fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", port(s))}, LocalOnly: true, ScopedIP: "127.0.0.1", ScopedMode: "integrated"}
+	}
 	if mode(s) != "auto" {
 		cfg = network.Config{DataDir: c.dir, Listen: []string{fmt.Sprintf("/ip4/%s/tcp/%d", c.selection.IP, port(s))}, LocalOnly: true, ScopedIP: c.selection.IP, ScopedMode: mode(s)}
 	}

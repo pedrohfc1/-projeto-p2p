@@ -13,6 +13,9 @@ def notices(z,folder,prefix):
   if f.is_file() and f.name.upper().startswith(('LICENSE','LICENCE','COPYING','NOTICE','PATENTS','AUTHORS')):put(z,prefix+'/'+f.name,f.read_bytes())
 with zipfile.ZipFile(out/f'ProjetoP2P-v{v}-licencas-{platform.system().lower()}.zip','w',zipfile.ZIP_DEFLATED) as z:
  put(z,'ProjetoP2P-LICENSE.txt',(p/'LICENSE').read_bytes());put(z,'THIRD_PARTY_NOTICES.md',(p/'THIRD_PARTY_NOTICES.md').read_bytes())
+
+ for f in (p/'third_party/etcat').iterdir():
+  if f.is_file() and f.name!='Cargo.lock':put(z,'integrated-helper/'+f.name,f.read_bytes())
  put(z,'go-modules.json',json.dumps([{k:m[k] for k in ('Path','Version','Sum') if k in m} for m in mods],indent=2))
  for m in sorted(mods,key=lambda x:x['Path']):
   if not m.get('Main') and m.get('Dir'):notices(z,pathlib.Path(m['Dir']),'go/'+m['Path']+'@'+m.get('Version',''))

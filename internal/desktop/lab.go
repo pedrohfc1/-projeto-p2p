@@ -1,3 +1,5 @@
+//go:build legacyeasytierlab
+
 package desktop
 
 import (
@@ -5,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"projetop2p/internal/easytierlab"
+	"sync"
 )
 
 func (c *Core) StartIntegratedLab(cfg easytierlab.Config) error {
@@ -54,3 +57,10 @@ func (c *Core) ProbeIntegratedLab(raw, text string) (easytierlab.Result, error) 
 	}
 	return c.lab.Ping(c.ctx, raw, text)
 }
+
+type legacyLabState struct {
+	labMu sync.Mutex
+	lab   *easytierlab.Lab
+}
+
+func (c *Core) closeLegacyLab() { c.StopIntegratedLab() }

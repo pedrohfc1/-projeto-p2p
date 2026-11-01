@@ -1,0 +1,16 @@
+{
+  "version": "etcat-0.1.0-p2p-beta",
+  "sha256": "472df99fa0d9d365957b84c548a8228a655de6984d67e971654fe893c3626d10",
+  "upnpDisabled": true,
+  "upstreamCommit": "ccb45cd84c20b2aa1e6615a3f62a83827e961695",
+  "etcatCommit": "ccb45cd84c20b2aa1e6615a3f62a83827e961695",
+  "easytierCommit": "164e2db6aecd13117d840821d5b889b51cb7c463",
+  "etcatSourceArchiveSHA256": "c8f551b9f85662e5dccf884f90dddeec6f5f2654e3d1445463c60baf8515d373",
+  "rust": "1.95.0-x86_64-pc-windows-gnu",
+  "llvmMinGW": "20261020-msvcrt-x86_64",
+  "upnp": false,
+  "tun": false,
+  "faketcp": false,
+  "windivert": false,
+  "zstd": false
+}

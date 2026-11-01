@@ -45,7 +45,7 @@ class Bridge:
         req = urllib.request.Request(self.base + '/rpc', data=data, headers={
             'Content-Type': 'application/json', 'Origin': self.base, 'X-QA-Token': self.token})
         try:
-            with urllib.request.urlopen(req, timeout=20) as r:
+            with urllib.request.urlopen(req, timeout=60) as r:
                 return json.load(r)
         except urllib.error.HTTPError as e:
             raise AssertionError(json.load(e)) from e

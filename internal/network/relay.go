@@ -73,6 +73,9 @@ func (n *Node) Status() Status {
 	s.Reachability = n.reachability
 	if n.localOnly {
 		s.Reachability = "interface selecionada (sem descoberta pública)"
+		if n.overlayPath != nil {
+			s.Reachability = "ponte userspace EasyTier, sem adaptador virtual"
+		}
 	}
 	n.mu.Unlock()
 	for _, a := range s.Addresses {
@@ -87,6 +90,9 @@ func (n *Node) Status() Status {
 				path = "direta"
 				break
 			}
+		}
+		if n.overlayPath != nil {
+			path = n.overlayPath(p.String())
 		}
 		s.Peers = append(s.Peers, PeerStatus{ID: p.String(), Path: path})
 	}

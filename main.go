@@ -17,7 +17,6 @@ import (
 	"projetop2p/internal/communities"
 	"projetop2p/internal/community"
 	"projetop2p/internal/desktop"
-	"projetop2p/internal/easytierlab"
 	"projetop2p/internal/localdb"
 )
 
@@ -84,31 +83,6 @@ func (a *App) LegacyInvite(raw string) (string, error) {
 		return community.LegacyInvite(raw)
 	}
 	return invite.Legacy(raw)
-}
-func (a *App) StartIntegratedLab(c easytierlab.Config) error {
-	if e := a.initialized(); e != nil {
-		return e
-	}
-	return a.core.StartIntegratedLab(c)
-}
-func (a *App) StopIntegratedLab() error {
-	if e := a.initialized(); e != nil {
-		return e
-	}
-	a.core.StopIntegratedLab()
-	return nil
-}
-func (a *App) IntegratedLabState() (easytierlab.State, error) {
-	if e := a.initialized(); e != nil {
-		return easytierlab.State{}, e
-	}
-	return a.core.IntegratedLabState(), nil
-}
-func (a *App) ProbeIntegratedLab(raw, text string) (easytierlab.Result, error) {
-	if e := a.initialized(); e != nil {
-		return easytierlab.Result{}, e
-	}
-	return a.core.ProbeIntegratedLab(raw, text)
 }
 func (a *App) Copy(s string) error {
 	if err := a.initialized(); err != nil {

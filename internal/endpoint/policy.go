@@ -37,6 +37,18 @@ func TCP4(a ma.Multiaddr) (string, int, bool) {
 	return value, port, true
 }
 func Allowed(a ma.Multiaddr, scope string) bool {
+	if scope == "integrated" {
+		p := a.Protocols()
+		if len(p) < 2 || len(p) > 3 || p[0].Code != ma.P_IP6 || p[1].Code != ma.P_TCP || (len(p) == 3 && p[2].Code != ma.P_P2P) {
+			return false
+		}
+		ip, _ := a.ValueForProtocol(ma.P_IP6)
+		port, _ := a.ValueForProtocol(ma.P_TCP)
+		n, e := strconv.Atoi(port)
+		v := net.ParseIP(ip)
+		return e == nil && n >= 1024 && n <= 65535 && v != nil && v.To16()[0] == 0xfd
+	}
+
 	if LinkLocal(a) {
 		return false
 	}

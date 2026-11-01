@@ -79,8 +79,13 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          ./scripts/desktop.ps1 -Installer
-          ./tests/installer-smoke.ps1
+          if (Test-Path PRIVATE_BETA_ONLY) {
+            ./scripts/desktop.ps1
+            Write-Output 'Private beta: installer requires the audited helper and corresponding-source bundle; built locally, never silently omitted.'
+          } else {
+            ./scripts/desktop.ps1 -Installer
+            ./tests/installer-smoke.ps1
+          }
           ./scripts/build.ps1
           if ($LASTEXITCODE -ne 0) {throw 'CLI build failed'}
       - name: Desktop Linux and runtime package
@@ -104,8 +109,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) {throw 'Desktop API smoke failed'}
           python tests/community_desktop_smoke.py dist/webui.exe --metrics dist/release/metrics-Windows.json
           if ($LASTEXITCODE -ne 0) {throw 'Community API smoke failed'}
-          python scripts/package-distribution.py windows
-          if ($LASTEXITCODE -ne 0) {throw 'Windows package failed'}
+          if (-not (Test-Path PRIVATE_BETA_ONLY)) {
+            python scripts/package-distribution.py windows
+            if ($LASTEXITCODE -ne 0) {throw 'Windows package failed'}
+          }
       - name: Local network regression Linux
         if: runner.os == 'Linux'
         run: |

@@ -12,13 +12,16 @@ import (
 )
 
 type Settings struct {
-	Name        string   `json:"name"`
-	Bootstrap   []string `json:"bootstrap"`
-	Relays      []string `json:"relays"`
-	Assisted    bool     `json:"assisted"`
-	Mode        string   `json:"mode"`
-	InterfaceID string   `json:"interfaceId"`
-	Port        int      `json:"port"`
+	IntegratedBinaryDir string   `json:"integratedBinaryDir,omitempty"`
+	IntegratedRelays    []string `json:"integratedRelays,omitempty"`
+	IntegratedRelayKey  string   `json:"integratedRelayKey,omitempty"`
+	Name                string   `json:"name"`
+	Bootstrap           []string `json:"bootstrap"`
+	Relays              []string `json:"relays"`
+	Assisted            bool     `json:"assisted"`
+	Mode                string   `json:"mode"`
+	InterfaceID         string   `json:"interfaceId"`
+	Port                int      `json:"port"`
 }
 type Contact struct {
 	ID          string   `json:"id"`

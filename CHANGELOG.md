@@ -1,3 +1,11 @@
+## 0.5.2 — beta privado integrado (2026-11-01)
+
+- Chat e comunidades sobre libp2p/Noise via SOCKS/EasyTier sem TUN, com helper embutido, credenciais protegidas e convites assinados.
+- Colisões de clientes etcat corrigidas com instâncias independentes e credencial de convite explicitamente reutilizável; permissões de comunidades preservadas.
+- Reconexão e ACK idempotente após gravação; espera inicial ajustada à inicialização da malha.
+- DHT provider afetada em quarentena por padrão; legado preservado com tag explícita, sem suprimir aviso de segurança.
+- Sem Packet.dll/Npcap, drivers ou UPnP; fontes correspondentes e licenças no instalador. Publicação bloqueada e validação entre casas pendente.
+
 # Histórico de mudanças
 
 O projeto usa versionamento semântico. As versões abaixo descrevem desenvolvimento local; não significam que existam releases públicas no GitHub.

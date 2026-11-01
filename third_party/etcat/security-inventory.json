@@ -1,0 +1,133 @@
+{
+  "date": "2026-11-01",
+  "scope": "Windows GNU normal/build graph; OSV database, not exploitability proof",
+  "selectedPackages": 540,
+  "runtimePackages": 493,
+  "findings": [
+    {
+      "package": [
+        "encoding",
+        "0.2.33"
+      ],
+      "scope": "runtime",
+      "advisories": [
+        "RUSTSEC-2021-0153"
+      ]
+    },
+    {
+      "package": [
+        "hickory-proto",
+        "0.25.2"
+      ],
+      "scope": "runtime",
+      "advisories": [
+        "GHSA-3v94-mw7p-v465",
+        "GHSA-q2qq-hmj6-3wpp",
+        "RUSTSEC-2026-0118",
+        "RUSTSEC-2026-0119"
+      ]
+    },
+    {
+      "package": [
+        "hickory-resolver",
+        "0.25.2"
+      ],
+      "scope": "runtime",
+      "advisories": [
+        "GHSA-5j98-2g5x-46v6",
+        "GHSA-6f2x-v7q7-m7m5"
+      ]
+    },
+    {
+      "package": [
+        "paste",
+        "1.0.15"
+      ],
+      "scope": "runtime",
+      "advisories": [
+        "RUSTSEC-2024-0436"
+      ]
+    },
+    {
+      "package": [
+        "proc-macro-error",
+        "1.0.4"
+      ],
+      "scope": "runtime",
+      "advisories": [
+        "RUSTSEC-2024-0370"
+      ]
+    },
+    {
+      "package": [
+        "russh",
+        "0.63.3"
+      ],
+      "scope": "runtime",
+      "advisories": [
+        "GHSA-4p9f-7p9m-5vfg",
+        "GHSA-4wc5-f2rc-q74m",
+        "GHSA-9wfm-jcj8-jfv9",
+        "GHSA-fw5c-8223-6h42",
+        "GHSA-j7h2-66j4-ghjf",
+        "GHSA-vp5q-ff62-jwqv"
+      ]
+    },
+    {
+      "package": [
+        "unsafe-libyaml",
+        "0.2.11"
+      ],
+      "scope": "runtime",
+      "advisories": [
+        "RUSTSEC-2024-0449"
+      ]
+    },
+    {
+      "package": [
+        "zip",
+        "4.6.1"
+      ],
+      "scope": "build",
+      "advisories": [
+        "GHSA-8hxf-qr8p-62x4",
+        "GHSA-m665-v7pm-7grj",
+        "GHSA-q7v9-x93c-xqv3",
+        "RUSTSEC-2026-0367",
+        "RUSTSEC-2026-0368",
+        "RUSTSEC-2026-0369"
+      ]
+    },
+    {
+      "package": [
+        "zstd",
+        "0.13.3"
+      ],
+      "scope": "build",
+      "advisories": [
+        "RUSTSEC-2026-0391"
+      ]
+    },
+    {
+      "package": [
+        "zstd-safe",
+        "7.3.0"
+      ],
+      "scope": "build",
+      "advisories": [
+        "RUSTSEC-2026-0395",
+        "RUSTSEC-2026-0396",
+        "RUSTSEC-2026-0397",
+        "RUSTSEC-2026-0398",
+        "RUSTSEC-2026-0399",
+        "RUSTSEC-2026-0400",
+        "RUSTSEC-2026-0401",
+        "RUSTSEC-2026-0402",
+        "RUSTSEC-2026-0403",
+        "RUSTSEC-2026-0404",
+        "RUSTSEC-2026-0405",
+        "RUSTSEC-2026-0406"
+      ]
+    }
+  ]
+}

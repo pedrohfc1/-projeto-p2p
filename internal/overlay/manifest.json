@@ -1,0 +1,6 @@
+{
+  "version": "etcat-0.1.0-p2p-beta",
+  "sha256": "472df99fa0d9d365957b84c548a8228a655de6984d67e971654fe893c3626d10",
+  "upnpDisabled": true,
+  "upstreamCommit": "ccb45cd84c20b2aa1e6615a3f62a83827e961695"
+}

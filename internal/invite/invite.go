@@ -7,6 +7,7 @@ import (
 	"projetop2p/internal/adapters"
 	"projetop2p/internal/compactinvite"
 	"projetop2p/internal/endpoint"
+	"projetop2p/internal/transportaddr"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -20,6 +21,7 @@ const Prefix = "projetop2p:"
 const CompactPrefix = "projetop2p:c2:"
 
 type Invite struct {
+	Route     string   `json:"route,omitempty"`
 	Version   int      `json:"version"`
 	ID        string   `json:"id"`
 	Name      string   `json:"name"`
@@ -38,7 +40,7 @@ func New(k crypto.PrivKey, name string, addresses, relays []string) (string, err
 func NewScoped(k crypto.PrivKey, name string, addresses []string, scope string) (string, error) {
 	return newInvite(k, name, addresses, nil, scope)
 }
-func newInvite(k crypto.PrivKey, name string, addresses, relays []string, scope string) (string, error) {
+func newInvite(k crypto.PrivKey, name string, addresses, relays []string, scope string, routes ...string) (string, error) {
 	id, e := peer.IDFromPrivateKey(k)
 	if e != nil {
 		return "", e
@@ -49,6 +51,9 @@ func newInvite(k crypto.PrivKey, name string, addresses, relays []string, scope 
 	}
 	i := Invite{Version: 1, ID: id.String(), Name: name, Addresses: addresses, Relays: relays, Expires: time.Now().Add(7 * 24 * time.Hour).Unix(), PublicKey: pub}
 	i.Scope = scope
+	if len(routes) > 0 {
+		i.Route = routes[0]
+	}
 	i.Signature, e = k.Sign(i.payload())
 	if e != nil {
 		return "", e
@@ -83,11 +88,14 @@ func Parse(s string, now time.Time) (Invite, error) {
 	if i.Version != 1 || len(i.Name) > 80 || !utf8.ValidString(i.Name) || i.Expires < now.Unix() || i.Expires > now.Add(8*24*time.Hour).Unix() || len(i.Addresses) > 16 || len(i.Relays) > 16 {
 		return i, errors.New("convite expirado ou campos invÃ¡lidos")
 	}
-	if i.Scope != "" && !adapters.IsVPN(i.Scope) && i.Scope != "interface" {
+	if i.Scope != "" && !adapters.IsVPN(i.Scope) && i.Scope != "interface" && i.Scope != "integrated" {
 		return i, errors.New("escopo de convite invÃ¡lido")
 	}
 	if i.Scope != "" && (len(i.Relays) > 0 || len(i.Addresses) == 0) {
 		return i, errors.New("convite de interface nÃ£o pode conter relays nem omitir endereÃ§o")
+	}
+	if (i.Scope == "integrated" && !transportaddr.ValidToken(i.Route)) || (i.Scope != "integrated" && i.Route != "") {
+		return i, errors.New("invalid integrated credential")
 	}
 	id, e := peer.Decode(i.ID)
 	if e != nil {
@@ -122,6 +130,12 @@ func Parse(s string, now time.Time) (Invite, error) {
 		}
 		if contains(i.Addresses, s) && i.Scope != "" && !endpoint.Allowed(a, i.Scope) {
 			return i, errors.New("convite de VPN/interface contÃ©m endereÃ§o incompatÃ­vel, link-local ou porta TCP invÃ¡lida")
+		}
+		if i.Scope == "integrated" {
+			ip, _ := a.ValueForProtocol(ma.P_IP6)
+			if ip != transportaddr.LogicalIP(id.String()) {
+				return i, errors.New("logical address does not match identity")
+			}
 		}
 		if contains(i.Addresses, s) && p.ID != id {
 			return i, errors.New("endereÃ§o pertence a outra identidade")
@@ -158,6 +172,9 @@ func encodeCompact(i Invite) (string, error) {
 	f.Add(3, compactinvite.Number(uint64(i.Expires)))
 	f.Add(4, []byte(i.Scope))
 	f.Add(7, i.Signature)
+	if i.Route != "" {
+		f.Add(13, []byte(i.Route))
+	}
 	xs, e := compactinvite.Addresses(i.Addresses, i.ID)
 	if e != nil {
 		return "", e
@@ -205,6 +222,7 @@ func decodeCompact(raw string) (Invite, error) {
 	i.Name = string(f.One(1))
 	i.Scope = string(f.One(4))
 	i.Signature = f.One(7)
+	i.Route = string(f.One(13))
 	i.Addresses, e = compactinvite.Restore(f[5], i.ID)
 	if e != nil {
 		return i, e
@@ -234,4 +252,8 @@ func decodeCompact(raw string) (Invite, error) {
 		i.Addresses = nil
 	}
 	return i, nil
+}
+
+func NewIntegrated(k crypto.PrivKey, name string, addresses []string, route string) (string, error) {
+	return newInvite(k, name, addresses, nil, "integrated", route)
 }

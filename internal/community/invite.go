@@ -11,6 +11,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	"projetop2p/internal/compactinvite"
 	"projetop2p/internal/endpoint"
+	"projetop2p/internal/transportaddr"
 	"strings"
 	"time"
 )
@@ -19,6 +20,7 @@ const InvitePrefix = "projetop2p-community:"
 const CompactInvitePrefix = "projetop2p-community:c2:"
 
 type Invite struct {
+	Route       string   `json:"route,omitempty"`
 	Domain      string   `json:"domain"`
 	CommunityID string   `json:"communityId"`
 	Name        string   `json:"name"`
@@ -34,7 +36,7 @@ type Invite struct {
 }
 
 func (i Invite) payload() []byte { i.Signature = nil; b, _ := json.Marshal(i); return b }
-func NewInvite(key crypto.PrivKey, s State, scope string, addresses []string) (string, error) {
+func NewInvite(key crypto.PrivKey, s State, scope string, addresses []string, routes ...string) (string, error) {
 	id, _ := peer.IDFromPrivateKey(key)
 	if id.String() != s.Owner || s.Archived {
 		return "", errors.New("owner signing key required")
@@ -44,6 +46,9 @@ func NewInvite(key crypto.PrivKey, s State, scope string, addresses []string) (s
 		addresses = addresses[:8]
 	}
 	i := Invite{Domain: "projetop2p/community-invite/1", CommunityID: s.ID, Name: s.Name, Owner: s.Owner, OwnerKey: pub, Root: s.Root, Epoch: s.InviteEpoch, Nonce: RandomID(), Expires: time.Now().Add(24 * time.Hour).Unix(), Scope: scope, Addresses: addresses}
+	if len(routes) > 0 {
+		i.Route = routes[0]
+	}
 	var e error
 	i.Signature, e = key.Sign(i.payload())
 	if e != nil {
@@ -81,8 +86,11 @@ func ParseInvite(raw string, now time.Time) (Invite, error) {
 	if i.Domain != "projetop2p/community-invite/1" || !ValidID(i.CommunityID) || !ValidID(i.Root) || !NameOK(i.Name) || len(i.Nonce) != 32 || i.Epoch == 0 || i.Expires < now.Unix() || i.Expires > now.Add(8*24*time.Hour).Unix() || len(i.Addresses) == 0 || len(i.Addresses) > 8 {
 		return i, errors.New("expired or invalid community invitation")
 	}
-	if i.Scope != "auto" && i.Scope != "radmin" && i.Scope != "hamachi" && i.Scope != "interface" {
+	if i.Scope != "auto" && i.Scope != "radmin" && i.Scope != "hamachi" && i.Scope != "interface" && i.Scope != "integrated" {
 		return i, errors.New("invalid invitation network scope")
+	}
+	if (i.Scope == "integrated" && !transportaddr.ValidToken(i.Route)) || (i.Scope != "integrated" && i.Route != "") {
+		return i, errors.New("invalid integrated community credential")
 	}
 	if e = signedBy(i.Owner, i.OwnerKey, i.payload(), i.Signature); e != nil {
 		return i, e
@@ -94,6 +102,12 @@ func ParseInvite(raw string, now time.Time) (Invite, error) {
 		a, e := ma.NewMultiaddr(raw)
 		if e != nil || !endpoint.Allowed(a, i.Scope) {
 			return i, errors.New("address incompatible with invitation scope")
+		}
+		if i.Scope == "integrated" {
+			ip, _ := a.ValueForProtocol(ma.P_IP6)
+			if ip != transportaddr.LogicalIP(i.Owner) {
+				return i, errors.New("logical endpoint does not match owner")
+			}
 		}
 		info, e := peer.AddrInfoFromP2pAddr(a)
 		if e != nil || info.ID.String() != i.Owner {
@@ -122,6 +136,9 @@ func encodeCompactInvite(i Invite) (string, error) {
 	f.Add(3, compactinvite.Number(uint64(i.Expires)))
 	f.Add(4, []byte(i.Scope))
 	f.Add(7, i.Signature)
+	if i.Route != "" {
+		f.Add(13, []byte(i.Route))
+	}
 	for n, s := range map[int]string{8: i.CommunityID, 9: i.Root, 11: i.Nonce} {
 		b, e := hex.DecodeString(s)
 		if e != nil {
@@ -164,6 +181,7 @@ func decodeCompactInvite(raw string) (Invite, error) {
 	i.Name = string(f.One(1))
 	i.Scope = string(f.One(4))
 	i.Signature = f.One(7)
+	i.Route = string(f.One(13))
 	i.CommunityID = hex.EncodeToString(f.One(8))
 	i.Root = hex.EncodeToString(f.One(9))
 	i.Nonce = hex.EncodeToString(f.One(11))

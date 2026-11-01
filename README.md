@@ -1,3 +1,5 @@
+> Beta privado 0.5.2: integração real EasyTier sem TUN em validação. Consulte [arquitetura e teste entre PCs](docs/EASYTIER-INTEGRADO-BETA-v0.5.2.md) e [quarentena DHT](docs/SEGURANCA-DHT-BETA.md). As descrições antigas de laboratório abaixo são históricas. Release público bloqueado.
+
 # Projeto P2P
 
 Mensageiro desktop experimental com identidade criptográfica persistente e comunicação autenticada entre usuários via libp2p. A versão **0.5.1** adiciona comunidades, canais de texto, convites assinados e papéis verificados no backend, preservando chat individual, contatos, histórico e Radmin/Hamachi. Salas de voz são somente definições; não há áudio, vídeo ou tela nesta fase.
