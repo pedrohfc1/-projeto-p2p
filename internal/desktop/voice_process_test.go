@@ -3,17 +3,22 @@ package desktop
 import (
 	"bytes"
 	"context"
+	wirebinary "encoding/binary"
 	"encoding/json"
 	"fmt"
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v4"
+	"github.com/pion/webrtc/v4/pkg/media/oggwriter"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"projetop2p/internal/voice"
 	"regexp"
+	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -113,6 +118,54 @@ func TestRealVoiceTwoBackendProcesses(t *testing.T) {
 		t.Fatal(joined)
 	}
 	var heardA, heardB atomic.Uint64
+	var latencyMu sync.Mutex
+	sentAt := map[uint16]time.Time{}
+	var latencySum, latencyMax time.Duration
+	var latencyCount int
+	measureLatency := func(p *rtp.Packet) {
+		latencyMu.Lock()
+		defer latencyMu.Unlock()
+		if at, ok := sentAt[p.SequenceNumber]; ok {
+			elapsed := time.Since(at)
+			latencySum += elapsed
+			if elapsed > latencyMax {
+				latencyMax = elapsed
+			}
+			latencyCount++
+		}
+	}
+	var payloads [][]byte
+	if fixture := os.Getenv("P2P_VOICE_OPUS_FIXTURE"); fixture != "" {
+		raw, e := os.ReadFile(fixture)
+		if e != nil {
+			t.Fatal(e)
+		}
+		for len(raw) > 0 {
+			if len(raw) < 2 {
+				t.Fatal("invalid fixture")
+			}
+			n := int(wirebinary.BigEndian.Uint16(raw))
+			raw = raw[2:]
+			if n > len(raw) {
+				t.Fatal("invalid fixture size")
+			}
+			payloads = append(payloads, append([]byte(nil), raw[:n]...))
+			raw = raw[n:]
+		}
+	}
+	var writerA, writerB *oggwriter.OggWriter
+	if len(payloads) > 0 {
+		writerA, e = oggwriter.New(filepath.Join(dir, "a-received.ogg"), 48000, 1)
+		if e != nil {
+			t.Fatal(e)
+		}
+		defer writerA.Close()
+		writerB, e = oggwriter.New(filepath.Join(dir, "b-received.ogg"), 48000, 1)
+		if e != nil {
+			t.Fatal(e)
+		}
+		defer writerB.Close()
+	}
 	engineA, e := voice.NewEngine("127.0.0.1")
 	if e != nil {
 		t.Fatal(e)
@@ -123,12 +176,24 @@ func TestRealVoiceTwoBackendProcesses(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer engineB.Close()
-	pa, e := engineA.Peer(func(*rtp.Packet) { heardA.Add(1) })
+	pa, e := engineA.Peer(func(p *rtp.Packet) {
+		heardA.Add(1)
+		measureLatency(p)
+		if writerA != nil {
+			_ = writerA.WriteRTP(p)
+		}
+	})
 	if e != nil {
 		t.Fatal(e)
 	}
 	defer pa.Close()
-	pb, e := engineB.Peer(func(*rtp.Packet) { heardB.Add(1) })
+	pb, e := engineB.Peer(func(p *rtp.Packet) {
+		heardB.Add(1)
+		measureLatency(p)
+		if writerB != nil {
+			_ = writerB.WriteRTP(p)
+		}
+	})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -159,34 +224,90 @@ func TestRealVoiceTwoBackendProcesses(t *testing.T) {
 		var baseline map[string]any
 		bridge.rpc(t, "State", map[string]any{"ID": ""}, &baseline)
 	}
-	for n := 1; n <= 50; n++ {
+	initialExpiryA, initialExpiryB := va.Expires, vb.Expires
+	frames := 50
+	if seconds, _ := strconv.Atoi(os.Getenv("P2P_VOICE_SOAK_SECONDS")); seconds > 0 {
+		frames = seconds * 50
+	}
+	for n := 1; n <= frames; n++ {
+		latencyMu.Lock()
+		sentAt[uint16(n)] = time.Now()
+		latencyMu.Unlock()
 		for _, p := range []*voice.MediaPeer{pa, pb} {
 			packet := &rtp.Packet{Header: rtp.Header{Version: 2, PayloadType: 111, SequenceNumber: uint16(n), Timestamp: uint32(n) * 960, SSRC: 42}, Payload: []byte{0xf8, 0xff, 0xfe}}
+			if len(payloads) > 0 {
+				packet.Payload = payloads[(n-1)%len(payloads)]
+			}
 			if e = p.Write(packet); e != nil {
 				t.Fatal(e)
 			}
 		}
 		time.Sleep(20 * time.Millisecond)
+		if n%500 == 0 {
+			a.rpc(t, "VoiceState", nil, &va)
+			b.rpc(t, "VoiceState", nil, &vb)
+			if !va.Joined || !vb.Joined {
+				t.Fatal("unexpected room leave during media")
+			}
+			b.rpc(t, "CommunityAction", map[string]any{"ID": group, "Kind": "message.text", "Body": map[string]any{"channelId": "geral", "text": "chat during continuous media"}}, nil)
+		}
 	}
 	time.Sleep(500 * time.Millisecond)
-	if heardA.Load() < 45 || heardB.Load() < 45 {
+	if heardA.Load() < uint64(frames*9/10) || heardB.Load() < uint64(frames*9/10) {
 		t.Fatal("separate-process audio bridge", heardA.Load(), heardB.Load())
 	}
 	a.rpc(t, "VoiceState", nil, &va)
 	b.rpc(t, "VoiceState", nil, &vb)
+	if frames >= 500 && (va.Expires <= initialExpiryA || vb.Expires <= initialExpiryB) {
+		t.Fatal("signed leases did not renew during soak")
+	}
 	summary, _ := json.Marshal(map[string]any{"a": va.Media, "b": vb.Media})
-	t.Log("measured RTP statistics", string(summary))
+	latencyMu.Lock()
+	if latencyCount > 0 {
+		t.Log("measured same-PC RTP bridge delivery mean/max", latencySum/time.Duration(latencyCount), latencyMax, "samples", latencyCount)
+	}
+	latencyMu.Unlock()
+	t.Log("measured RTP statistics", string(summary), "frames each direction", frames)
 	for _, bridge := range []voiceBridge{a, b} {
 		var state map[string]any
 		bridge.rpc(t, "State", map[string]any{"ID": ""}, &state)
 		raw, _ := json.Marshal(state["metrics"])
 		t.Log("backend metrics during synthetic audio", string(raw))
 	}
-	t.Logf("two production processes, connected in %s, synthetic Opus delivered %d/50 + %d/50, RTP stats: %+v / %+v", connectionDuration, heardA.Load(), heardB.Load(), va.Media, vb.Media)
+	t.Logf("two production processes, connected in %s, delivered %d/%d + %d/%d synthetic frames", connectionDuration, heardA.Load(), frames, heardB.Load(), frames)
 	a.rpc(t, "VoiceLeave", nil, nil)
 	b.rpc(t, "VoiceLeave", nil, nil)
 	a.rpc(t, "VoiceState", nil, &va)
 	b.rpc(t, "VoiceState", nil, &vb)
+	if writerA != nil {
+		// Leave closes production senders first; close receiver tracks before flushing the recordings.
+		pa.Close()
+		pb.Close()
+		writerA.Close()
+		writerB.Close()
+		for _, name := range []string{"a", "b"} {
+			pcm := filepath.Join(dir, name+".pcm")
+			cmd := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error", "-i", filepath.Join(dir, name+"-received.ogg"), "-f", "f32le", "-ac", "1", "-ar", "48000", "-y", pcm)
+			hideTestProcess(cmd)
+			if data, e := cmd.CombinedOutput(); e != nil {
+				t.Fatal("Opus decode", e, string(data))
+			}
+			raw, e := os.ReadFile(pcm)
+			if e != nil || len(raw) < 48000 {
+				t.Fatal("decoded PCM missing", e)
+			}
+			sum := 0.0
+			for n := 0; n+4 <= len(raw); n += 4 {
+				v := float64(math.Float32frombits(wirebinary.LittleEndian.Uint32(raw[n:])))
+				sum += v * v
+			}
+			rms := math.Sqrt(sum / float64(len(raw)/4))
+			if rms < .02 {
+				t.Fatal("decoded audio silent", rms)
+			}
+			t.Log("REAL Opus decoded PCM RMS", name, rms, "samples", len(raw)/4)
+		}
+	}
 	if va.Joined || vb.Joined {
 		t.Fatal("call cleanup failed")
 	}

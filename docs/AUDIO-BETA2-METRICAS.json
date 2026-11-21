@@ -1,0 +1,82 @@
+{
+  "build": "0.6.0-audio-beta2",
+  "date": "2026-11-04",
+  "scope": "same Windows PC, two production backend processes, real mono Opus encoded from generated PCM tone, no physical microphone/WebView playback",
+  "nominalAudioSeconds": 300,
+  "framesPerDirection": 15000,
+  "decodedSamplesEach": 14396160,
+  "decodedPcmRmsEach": 0.08744074593850332,
+  "initialConnectionSeconds": 3.2053027,
+  "deliveryMeanMs": 38.917685,
+  "deliveryMaxMs": 7365.4972,
+  "deliveryScope": "test send-to-RTP-receiver callbacks, includes local WebRTC and test recording I/O/scheduling; not mouth-to-ear latency or proof outlier was caused by TCP",
+  "rtp": {
+    "a": {
+      "dropped": 0,
+      "queueDelayMs": 0,
+      "transport": "libp2p-stream",
+      "jitterMs": null,
+      "packetsLost": null,
+      "roundTripMs": null,
+      "state": "connected",
+      "packetsIn": 15000,
+      "packetsOut": 15000,
+      "bytesIn": 1615811,
+      "bytesOut": 1615811
+    },
+    "b": {
+      "dropped": 0,
+      "queueDelayMs": 0,
+      "transport": "libp2p-stream",
+      "jitterMs": null,
+      "packetsLost": null,
+      "roundTripMs": null,
+      "state": "connected",
+      "packetsIn": 15000,
+      "packetsOut": 15000,
+      "bytesIn": 1615811,
+      "bytesOut": 1615811
+    }
+  },
+  "backendMetrics": [
+    {
+      "connections": 1,
+      "cpuPercent": 1.921631057456654,
+      "cpuSecs": 6.421875,
+      "downloadBps": 6702.739038666119,
+      "downloadBytes": 2100520,
+      "goroutines": 65,
+      "heapBytes": 3674608,
+      "lastConnectMs": null,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "pingMs": null,
+      "rssBytes": 33189888,
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico",
+      "streams": 1,
+      "uploadBps": 6948.887634535191,
+      "uploadBytes": 2177659
+    },
+    {
+      "connections": 1,
+      "cpuPercent": 2.7444802876785563,
+      "cpuSecs": 8.90625,
+      "downloadBps": 6952.133228337514,
+      "downloadBytes": 2178622,
+      "goroutines": 68,
+      "heapBytes": 2582384,
+      "lastConnectMs": 4573.602,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "pingMs": null,
+      "rssBytes": 35033088,
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico",
+      "streams": 1,
+      "uploadBps": 6703.912597150279,
+      "uploadBytes": 2100878
+    }
+  ],
+  "physicalDevicesTested": false,
+  "browserMonitorIntegration": "blocked: Edge initialization failed; unit monitor tests passed",
+  "tcpCaveat": "application queues bounded; head-of-line/retransmission and local renderer buffering can still add latency"
+}

@@ -44,7 +44,7 @@ func TestRadminInviteRequiresExplicitSelectionAndPinsGUID(t *testing.T) {
 		t.Fatal(r, e)
 	}
 	s, _ := c.State("")
-	if mode(s.Settings) != "auto" || len(s.Contacts) != 0 || s.Network.ID != before.Network.ID {
+	if mode(s.Settings) != "integrated" || len(s.Contacts) != 0 || s.Network.ID != before.Network.ID {
 		t.Fatal("invite silently modified profile")
 	}
 	if e = c.SaveSettings(localdb.Settings{Name: "Saved", Mode: "radmin"}); e == nil {

@@ -46,6 +46,7 @@ type Config struct {
 	IntegratedAddresses []string
 	InvitationRoute     func() string
 	RegisterRoute       func(string, string) error
+	HasRoute            func(string) bool
 	OverlayPath         func(string) string
 	DataDir             string
 	Listen              []string
@@ -68,10 +69,15 @@ type committedReceipt struct {
 	at     time.Time
 }
 type Node struct {
+	mediaObservations mediaObservations
 	receiveMu         sync.Mutex
 	committed         map[string]committedReceipt
 	invitationRoute   func() string
 	registerRoute     func(string, string) error
+	hasRoute          func(string) bool
+	integrated        bool
+	retryAt           map[peer.ID]time.Time
+	routeLogs         map[peer.ID]routeLog
 	overlayPath       func(string) string
 	Host              host.Host
 	DHT               dhtService
@@ -259,6 +265,9 @@ func New(parent context.Context, c Config) (*Node, error) {
 	n := &Node{Host: h, DHT: kd, Messages: make(chan messaging.Message, 64), Events: make(chan string, 32), ctx: ctx, cancel: cancel, known: map[peer.ID]peer.AddrInfo{}, relays: source, relayServer: c.RelayServer, reachability: "desconhecida", onMessage: c.OnMessage}
 	n.invitationRoute = c.InvitationRoute
 	n.registerRoute = c.RegisterRoute
+	n.hasRoute = c.HasRoute
+	n.integrated = c.IntegratedDialer != nil
+	n.retryAt = map[peer.ID]time.Time{}
 	n.overlayPath = c.OverlayPath
 	n.relayMetrics = metrics
 	n.traffic = traffic
@@ -322,6 +331,7 @@ func New(parent context.Context, c Config) (*Node, error) {
 	return n, nil
 }
 func (n *Node) remember(p peer.AddrInfo) {
+	p = n.resolveEndpoints(p)
 	if n.localOnly {
 		filtered := []ma.Multiaddr{}
 		scope := n.scopedMode
@@ -350,7 +360,7 @@ func (n *Node) remember(p peer.AddrInfo) {
 		merged := []ma.Multiaddr{}
 		seen := map[string]bool{}
 		previous := n.known[p.ID].Addrs
-		if n.localOnly {
+		if n.localOnly || n.integrated {
 			previous = nil
 		}
 		for _, a := range append(append([]ma.Multiaddr{}, p.Addrs...), previous...) {
@@ -361,17 +371,23 @@ func (n *Node) remember(p peer.AddrInfo) {
 		}
 		p.Addrs = merged
 		n.known[p.ID] = p
+		if n.integrated {
+			n.Host.Peerstore().ClearAddrs(p.ID)
+		}
 		n.Host.Peerstore().AddAddrs(p.ID, p.Addrs, peerstore.PermanentAddrTTL)
 	}
 }
 func (n *Node) Connect(ctx context.Context, p peer.AddrInfo) error {
+	p = n.resolveEndpoints(p)
 	n.remember(p)
 	if n.localOnly && n.Host.Network().Connectedness(p.ID) != net.Connected {
 		n.Host.Peerstore().ClearAddrs(p.ID)
 	}
 	existed := len(n.Host.Network().ConnsToPeer(p.ID)) > 0
 	started := time.Now()
+	n.clearBackoff(p.ID)
 	e := n.Host.Connect(ctx, p)
+	n.routeDiagnostic(p.ID, len(p.Addrs), e)
 	if e == nil && !existed {
 		n.lastConnectMicros.Store(time.Since(started).Microseconds())
 	}
@@ -412,7 +428,7 @@ func (n *Node) run(interval time.Duration) {
 				timeout = 40 * time.Second
 			}
 			ctx, cancel := context.WithTimeout(n.ctx, timeout)
-			err := n.Host.Connect(ctx, p)
+			err := n.Connect(ctx, p)
 			cancel()
 			if err != nil {
 				if r.delay == 0 {

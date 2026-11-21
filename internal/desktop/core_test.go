@@ -23,6 +23,12 @@ func TestTwoProfilesAndRestart(t *testing.T) {
 			b.Close()
 		}
 	}()
+	if e = a.SelectNetwork("auto", ""); e != nil {
+		t.Fatal(e)
+	}
+	if e = b.SelectNetwork("auto", ""); e != nil {
+		t.Fatal(e)
+	}
 	ai, e := a.Invite()
 	if e != nil {
 		t.Fatal(e)

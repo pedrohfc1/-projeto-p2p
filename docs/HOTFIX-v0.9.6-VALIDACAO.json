@@ -1,0 +1,91 @@
+{
+  "version": "0.9.6",
+  "private": true,
+  "published": false,
+  "rollback": {
+    "lastAvailableCommit": "c4e90b2",
+    "validatedWorktreeBase": "0.9.5",
+    "sourceSHA256": "31195d70dba683b2fb8a306c95e766f3146ca194ca3f8addde33fbb26a350817e",
+    "path": "../work/rollback-pre-v096"
+  },
+  "passed": [
+    "54 frontend tests and TypeScript/Vite build",
+    "Go ./... and vet ./...",
+    "blocked screen authorization lookup does not hold audio mutex",
+    "renewal, expiry/replay, recovery authorization regressions",
+    "2/3 independent local production processes with EasyTier, encrypted libp2p, generated Opus",
+    "600 seconds simultaneous generated VP8 and Opus, local production cores, real EasyTier",
+    "owner outage and return, reset and recovery with signed grants",
+    "chat, communities, viewer presence, reconnect and cleanup",
+    "Windows/Linux CLI build; three-process CLI smoke",
+    "native Windows consent-policy build",
+    "public source allowlist and gitleaks"
+  ],
+  "pending": [
+    "physical microphones and bidirectional audible voice on two PCs/WAN",
+    "actual WebView2 source capture minimized 10 minutes and restoration",
+    "Windows tray indicator/Stop and Explorer restart (notification area unavailable in sandbox)",
+    "physical capture/encode/render FPS; GPU encoding; complete CPU/RAM including helper/WebView",
+    "15-second pauses in affected physical environment; no unique root cause confirmed",
+    "1080p60 real capture/display, not claimed",
+    "full interactive installation/upgrade/HKCU, reboot and Linux desktop"
+  ],
+  "soak": {
+    "seconds": 600.300448,
+    "generatedFramesSent": 17996,
+    "generatedFramesReceived": 17944,
+    "realDeliveryFPS": 29.891698498282647,
+    "payloadMbps": 0.6511651179044264,
+    "audioFrames": [
+      29999,
+      30002
+    ],
+    "backendA": {
+      "heapBytes": 15006288,
+      "rssBytes": 55615488,
+      "cpuPercent": 10.46350136297123,
+      "cpuSecs": 64.171875,
+      "goroutines": 278,
+      "uploadBytes": 51451557,
+      "downloadBytes": 2165191,
+      "uploadBps": 85103.35764520871,
+      "downloadBps": 3545.138376216076,
+      "connections": 1,
+      "streams": 2,
+      "lastConnectMs": null,
+      "pingMs": null,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+    },
+    "backendB": {
+      "heapBytes": 15018496,
+      "rssBytes": 55615488,
+      "cpuPercent": 10.46350136297123,
+      "cpuSecs": 64.171875,
+      "goroutines": 278,
+      "uploadBytes": 2165191,
+      "downloadBytes": 51451557,
+      "uploadBps": 3545.138376216076,
+      "downloadBps": 85103.35764520871,
+      "connections": 1,
+      "streams": 2,
+      "lastConnectMs": 5784.908,
+      "pingMs": null,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+    },
+    "scope": "same machine production cores and real encrypted EasyTier; looped prerecorded VP8, generated Opus, no capture/encoder/render/physical hardware or two-house claim"
+  },
+  "shortSyntheticVideo": {
+    "deliveryMeanMs": 0.484258,
+    "deliveryMaxMs": 2.0729,
+    "latencyScope": "encoded RTP send to complete received VP8; excludes physical capture, browser encoder and display",
+    "fixtureWidth": 1280,
+    "fixtureHeight": 720,
+    "steadyCompleteFPS": 30.010233741892822
+  },
+  "architecture": "Opus/VP8/libp2p/EasyTier unchanged. Signed grants still required. Hidden share fails closed without working Windows tray controls.",
+  "appSHA256": "bd2d575e12fbb4baa4662618bb9e781ff256c9247e592a5f83a71a82729a2be8"
+}

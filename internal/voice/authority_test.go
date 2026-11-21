@@ -25,7 +25,10 @@ func TestRoomAuthorityAuthenticationQuotaAndRevocation(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	keys := []crypto.PrivKey{owner, testKey(t), testKey(t)}
+	keys := []crypto.PrivKey{owner}
+	for len(keys) < 7 {
+		keys = append(keys, testKey(t))
+	}
 	people := []Participant{}
 	for n, key := range keys {
 		id, _ := peer.IDFromPrivateKey(key)
@@ -64,8 +67,13 @@ func TestRoomAuthorityAuthenticationQuotaAndRevocation(t *testing.T) {
 	if e = VerifyLease(*lease.Lease, state, "voz", time.Now()); e != nil {
 		t.Fatal(e)
 	}
-	if res := authority.Handle(people[2].ID, request(people[2])); res.Error == "" {
-		t.Fatal("third person bypassed v0.6.0 media quota")
+	for n := 2; n < 6; n++ {
+		if res := authority.Handle(people[n].ID, request(people[n])); res.Error != "" {
+			t.Fatal(res.Error)
+		}
+	}
+	if res := authority.Handle(people[6].ID, request(people[6])); res.Error == "" {
+		t.Fatal("seventh participant bypassed room limit")
 	}
 	forged := *lease.Lease
 	forged.Signature = append([]byte(nil), forged.Signature...)
@@ -73,7 +81,7 @@ func TestRoomAuthorityAuthenticationQuotaAndRevocation(t *testing.T) {
 	if VerifyLease(forged, state, "voz", time.Now()) == nil {
 		t.Fatal("forged authority")
 	}
-	if VerifyLease(*lease.Lease, state, "voz", time.Now().Add(time.Minute)) == nil {
+	if VerifyLease(*lease.Lease, state, "voz", time.Now().Add(time.Duration(LeaseSeconds+1)*time.Second)) == nil {
 		t.Fatal("expired lease accepted")
 	}
 	op, _ = community.SignOperation(owner, state.ID, state.Head, community.Remove, community.Body{Target: people[1].ID})

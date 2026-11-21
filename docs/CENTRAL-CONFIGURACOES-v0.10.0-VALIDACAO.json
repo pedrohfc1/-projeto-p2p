@@ -1,0 +1,63 @@
+{
+  "version": "0.10.0",
+  "private": true,
+  "published": false,
+  "appSHA256": "131dc8437f37a7b5690edbd6a9a3f622519bd01b7b67c0808e3a0ae33a366099",
+  "nativeCaptureHelperSHA256": "63cb2db0432b0345cad2628f990e3834203c3f241d01939f31d7965e92706bce",
+  "preservation": {
+    "baseline": "0.9.9",
+    "unchangedFiles": 68,
+    "joinRebindAndMicrophoneHandoverUnchanged": true,
+    "screenCaptureBridgePublishWatchPlayerUnchanged": true,
+    "rollbackSourceSHA256": "0db3f7d6cd816b01cadb0c9f597917975d7190e9580721bd9f2663ab5d1c2e67"
+  },
+  "frontendTests": 85,
+  "nativeUI": {
+    "engine": "Native Windows Wails/WebView2",
+    "profile": "isolated synthetic QA profile under workspace; no personal profile",
+    "observed": [
+      "Cold start leaves central closed and one profile gear visible",
+      "Central width/header corrected and inspected on final app",
+      "Voice device selectors, volume controls, monitor button and meter accessible; no capture or permission grant performed",
+      "Transmission presets accessible without joining a call",
+      "Arrow Down changes selected settings section",
+      "Community settings show signed-owner management controls in central",
+      "Escape closes central and returns to selected community",
+      "Member profile card shows name/role/actions, with full identity collapsed",
+      "Voice category collapses/reopens without changing community navigation",
+      "Window minimized/restored with profile card state retained; no active call in this native test",
+      "Normal window approximately 1166x783 and maximized 1920x1080 inspected",
+      "Isolated public identity and local test message retained across native restarts",
+      "Isolated QA window closed cleanly (Exit=0)"
+    ],
+    "notTested": [
+      "Real microphone/speakers, actual WASAPI and screen capture while navigating central",
+      "Native UI during a physical two-PC voice/video call",
+      "Minimum 760px window and Linux desktop rendering"
+    ]
+  },
+  "passed": [
+    "npm ci, 85 frontend unit/render tests and TypeScript/Vite build",
+    "Full app render: exactly one profile settings gear, central closed on startup, no backend/media calls during server rendering",
+    "15 unique sections, five media tabs, settings navigation state, appearance validation, transmission bounds, hidden-but-mounted channel categories, profile identity in details, calendar separators",
+    "Existing audio, microphone handover/monitor, muted RTC consumers, screen sound fencing/volume tests retained",
+    "go test -timeout 3m ./...; go vet ./...",
+    "Windows/Linux CLI compilation; three-process signed chat/invite/bootstrap-outage/crash/identity/address-recovery smoke",
+    "2 and 3 independent local production processes, generated Opus (93.81s)",
+    "Encrypted EasyTier synthetic voice/video/screen-audio/chat, authorization/subscriber checks and cleanup: isolated retry passed (39.57s)",
+    "Three peers owner outage and stream reset recovery (110.90s)",
+    "Three actual local desktop services: signed invites, roles, channel text, sync, durable journal, restart, deduplication, revocation and preserved direct chat (loopback)",
+    "Prompt-v1 Windows native build and native UI inspection on isolated profile"
+  ],
+  "observations": [
+    "First combined media attempt failed during initial community join: local SOCKS i/o timeout before any frontend execution. Same test passed isolated without timeout increases or backend changes. Both results retained.",
+    "Headless Edge failed to launch (Crashpad pipe/process exit). This is not a browser-test pass; native UI was inspected through the Windows desktop helper instead."
+  ],
+  "limitations": [
+    "Soundboard, custom app sounds, alternative input profiles and new advanced DSP are explicitly future/disabled; no new backend capability is claimed",
+    "Physical voice/video/WASAPI, speaker swap and actual active-call settings navigation between two PCs remain pending",
+    "Native minimized/restored UI test had no active microphone or screen capture",
+    "Full GUI installer upgrade/HKCU/reboot, Linux desktop and race validation not performed here",
+    "Existing public-release security blockers and legacy DHT quarantine preserved"
+  ]
+}

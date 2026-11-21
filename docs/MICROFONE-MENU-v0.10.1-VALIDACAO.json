@@ -1,0 +1,76 @@
+{
+  "version": "0.10.1",
+  "privateBetaOnly": true,
+  "published": false,
+  "frontendTestsPassed": 95,
+  "goTestAllPassed": true,
+  "goVetPassed": true,
+  "nativeWindowsBuild": true,
+  "cliWindowsLinuxBuilt": true,
+  "cliSmokePassed": true,
+  "communitySignedRolesRevocationAndHistoryPassed": true,
+  "localReceiveOnlyThenAttachRealTrackPassed": true,
+  "realIntegratedProcesses": {
+    "peers": [
+      2,
+      3
+    ],
+    "groupDurationSeconds": 78.64,
+    "syntheticOpus": true,
+    "twoPhysicalPCs": false
+  },
+  "videoVoiceScreenAudioIntegrated": {
+    "passed": true,
+    "durationSeconds": 44.22,
+    "capture": "generated VP8/Opus and fake injected system-audio source; not physical WASAPI",
+    "receivedCompleteFPS": 24.526326053431983,
+    "scope": "RTP encoded transport only; excludes physical capture/renderer"
+  },
+  "ownerOutageResetRecovery": {
+    "passed": true,
+    "durationSeconds": 101.26
+  },
+  "nativeUI": {
+    "isolatedProfile": true,
+    "noisePreferenceChanged": true,
+    "participantRightClick": true,
+    "volumeMouseKeyboard": true,
+    "volumePercentAfterChange": 146,
+    "localMute": true,
+    "shiftF10": true,
+    "escape": true,
+    "withinWindow": true,
+    "preferencesVerifiedOnProcessReopen": true,
+    "identityHistoryMembersPreserved": true,
+    "cleanProcessExit": 0,
+    "physicalCapture": false,
+    "finalBuildReopenedAndPreferencesConfirmed": true
+  },
+  "headlessBrowser": {
+    "passed": false,
+    "reason": "Edge exits before page creation; Crashpad TransactNamedPipe 0x6D"
+  },
+  "initialTestFailures": [
+    "Without network permission, loopback connections were denied. Authorized network rerun passed.",
+    "New receive-only test initially used default Pion ICE excluding loopback; corrected isolated test setup to the production loopback engine, then passed. No product transport change."
+  ],
+  "unsupportedActionsHidden": [
+    "friendship without signed contact invite",
+    "per-user effects soundboard",
+    "server mute/deaf/move/disconnect",
+    "community ban",
+    "ignore/block/unblock",
+    "other-user nickname"
+  ],
+  "pending": [
+    "physical microphone suppression/permission/unplug and acoustic playback",
+    "two Windows PCs over integrated/Radmin",
+    "real active-call GUI/device swaps and physical screen/system audio",
+    "Linux native GUI and race checks",
+    "full graphical installer clean/upgrade/reboot",
+    "ten-minute physical voice/video soak"
+  ],
+  "installerPayloadVerified": true,
+  "installerVersion": "0.10.1",
+  "fullGUIInstallationPerformed": false
+}

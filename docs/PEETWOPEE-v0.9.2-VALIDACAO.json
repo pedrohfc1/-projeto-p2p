@@ -1,0 +1,255 @@
+{
+  "version": "0.9.2",
+  "date": "2026-11-05",
+  "distribution": "private beta, no publication",
+  "causes": [
+    "sequential replacement could update helper before locked app failed",
+    "no atomic inventory/rollback/startup integrity guard",
+    "no pre-WebView single-profile exclusion; tray process could remain active",
+    "installer dialogs falsely displayed0.5.2"
+  ],
+  "physicalRootCause": "Not reproduced on the users physical devices; installer faults are established from source and native isolated regression tests, not proof of a specific microphone failure",
+  "mediaComparison": {
+    "frontend/src/Voice.tsx": {
+      "unchanged": true,
+      "sha256": "3441c939458bc97bbac9820b48e3d0ff3b4bfa594b80942f278c5e96b51ccc2b"
+    },
+    "frontend/src/Screen.tsx": {
+      "unchanged": true,
+      "sha256": "54a5a2932f7ade0da6eae0af330b7d2c29fe786fb1bce154b58490ca56a540e0"
+    },
+    "frontend/src/microphoneGain.ts": {
+      "unchanged": true,
+      "sha256": "922ead6d5ace5c3c947dd5573284ba68fdcf76b54b200b5fab884905e6f79a2d"
+    },
+    "internal/voice/service.go": {
+      "unchanged": true,
+      "sha256": "97a9a0ceb67f29ab2c8f98b285eff2fc29b11a7b8812d3f3ada1cdd136f3ccf8"
+    },
+    "internal/voice/engine.go": {
+      "unchanged": true,
+      "sha256": "02aefaadbfb86d3112137df358daf951f3dd9e04e85fd6a7ec03b0700d1dd496"
+    },
+    "internal/voice/stream.go": {
+      "unchanged": true,
+      "sha256": "12c5937bf37f1a3d7ddeb70396fd9686cd0f1dc3a17d951853704e0979b986b3"
+    },
+    "internal/voice/screen.go": {
+      "unchanged": true,
+      "sha256": "0b138def427c258ff201d7c504b7dbf14d16844020bdbe47bdc17c434ec8a30b"
+    },
+    "internal/voice/screen_pipe.go": {
+      "unchanged": true,
+      "sha256": "15fca580c4d0ae56130f78327ad32d1be6c7416fb4768887f30c439b841e1f2a"
+    },
+    "internal/overlay/manager.go": {
+      "unchanged": true,
+      "sha256": "d924b9fc7c32f0f784a5019eb610553e1133f14f52704970435e74ceae4a75ad"
+    }
+  },
+  "tests": {
+    "frontend": "44 tests and TypeScript/Vite passed",
+    "windows": "native isolated file installation/overwrite, hidden process IPC shutdown, refusal/force consent, unrelated same-name process preserved, profile duplicate rejection, identity/history unchanged, locks rollback, injected metadata rollback and process restart passed",
+    "shellShortcut": "real Windows .lnk create/query passed",
+    "registry": "SKIPPED: HKCU write blocked by execution sandbox. File/process integration injects metadata callbacks; not a full GUI installer test",
+    "transactions": "full previous inventory and metadata rollback, simulated crash recovery, startup journal refusal, corrupted backup and path escape rejection passed",
+    "helper": "real audited EasyTier supervisor recovery and Close/no live helper passed",
+    "voice": "real two production cores: bidirectional Opus over EasyTier, mute/deaf, local bridge repair, concurrent text, reconnect and revoked shutdown passed; not physical microphone",
+    "video": "generated VP8 decoded after real encrypted EasyTier transport with simultaneous Opus/chat, two publishers, reconnect, visibility expiry and cleanup passed",
+    "community": "three production processes: signed admissions/roles/text/sync/restart/revocation passed",
+    "social": "three integrated EasyTier processes: signed actions, offline/restart recovery and original chat passed",
+    "actualPayload": "PASS current final payload: actual0.9.1 desktop EXE replaced by actual0.9.2 EXE, current real helper/source/license/uninstaller files, isolated install, verified installed hashes/version/prompt-v1 and unchanged identity. Metadata injected; no old/new GUI launched.",
+    "build": "Windows desktop/private setup built and exact payload/update-consent/rollback flags/helper/full LGPL sources/licenses/PE imports verified. Windows/Linux CLI compiled and smoke passed.",
+    "audit": "Go/vet, version/actionlint, source/gitleaks/diff checks recorded. govulncheck0 reachable/0 imported-package,8 module-only; existing Rust gate unchanged."
+  },
+  "pending": [
+    "whole interactive Windows installer and real HKCU registration",
+    "actual old application/tray/UI upgrade outside sandbox",
+    "physical microphones/speakers/screens and two PCs/separate networks",
+    "real Windows reboot; process restart is not OS reboot",
+    "Linux desktop"
+  ],
+  "preservation": [
+    "same profile/default paths; no schema/media protocol rewrite",
+    "unknown install files retained, obsolete deletion allowlisted",
+    "Preferences/Local State/Local Storage/IndexedDB/cookies/permissions retained",
+    "no firewall/routes/DNS/global permission changes"
+  ],
+  "limits": [
+    "legacy external portable copies must be closed manually when default profile is busy",
+    "legacy force requires second interactive consent; unsaved composer text can be lost",
+    "two installation backups; cache backups retained",
+    "no claim of power-failure validation or physical audio repair",
+    "Rust gate/DHT quarantine unchanged"
+  ],
+  "appSHA256": "f5f85d12ffeb9e739d593c70c79e6b2aff4f060d51ba98e17985fbf3396bf994",
+  "setupSHA256": "3e380faea33773d64823303e69634eb6c7663279a1244a019f5dcfc6cacf0bb9",
+  "cacheRevision": "SHA256 of actual embedded frontend revision combined with verified executable SHA256; supports Default and EBWebView/Default, preserves non-cache storage",
+  "mediaTimingsSeconds": {
+    "screen": 45.37,
+    "voice": 39.31
+  },
+  "localGeneratedMediaMetrics": {
+    "audioFrames": [
+      222,
+      222
+    ],
+    "backendA": {
+      "heapBytes": 9212544,
+      "rssBytes": 91209728,
+      "cpuPercent": 8.812957114689844,
+      "cpuSecs": 1.171875,
+      "goroutines": 278,
+      "uploadBytes": 375006,
+      "downloadBytes": 46235,
+      "uploadBps": 75771.46455069362,
+      "downloadBps": 4116.285505472415,
+      "connections": 1,
+      "streams": 2,
+      "lastConnectMs": null,
+      "pingMs": null,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+    },
+    "backendB": {
+      "heapBytes": 9224848,
+      "rssBytes": 91242496,
+      "cpuPercent": 8.811956513770056,
+      "cpuSecs": 1.171875,
+      "goroutines": 278,
+      "uploadBytes": 46290,
+      "downloadBytes": 375006,
+      "uploadBps": 4110.178500630795,
+      "downloadBps": 75762.86164974488,
+      "connections": 1,
+      "streams": 2,
+      "lastConnectMs": 3688,
+      "pingMs": null,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+    },
+    "deliveryMaxMs": 1.3077,
+    "deliveryMeanMs": 0.096968,
+    "fixtureHeight": 720,
+    "fixtureWidth": 1280,
+    "latencyScope": "encoded RTP send to complete received VP8; excludes physical capture, browser encoder and display",
+    "receivedCompleteFPS": 26.8447443235491,
+    "scope": "same Go test process, two production cores, generated VP8 and Opus, actual EasyTier/libp2p; excludes WebView/helper and physical capture",
+    "screenA": {
+      "dropReasons": {
+        "bandwidthOrAudioPriority": 0,
+        "keyframeWait": 0,
+        "lateOrUnauthorized": 0,
+        "queue": 0,
+        "window": 0
+      },
+      "participants": [
+        "12D3KooWPPW7tySpXnfp7Y2HH7VTc3cAtMBGwXMf3GrQLkZoJp61",
+        "12D3KooWQLYUd2G8iLbpjb4j2jw9GaZKCqfXS3vnuwy3dgcGi4sm"
+      ],
+      "roundTripMs": 0.5134,
+      "active": true,
+      "publishing": true,
+      "playing": "",
+      "watching": "",
+      "viewers": 1,
+      "bitrate": 3000000,
+      "maxViewers": 5,
+      "framesIn": 0,
+      "framesOut": 119,
+      "dropped": 0,
+      "bytesIn": 0,
+      "bytesOut": 317918,
+      "peers": [
+        {
+          "statusKnown": true,
+          "id": "12D3KooWQLYUd2G8iLbpjb4j2jw9GaZKCqfXS3vnuwy3dgcGi4sm",
+          "name": "b",
+          "sharing": false,
+          "connected": true,
+          "accepted": false
+        }
+      ],
+      "error": ""
+    },
+    "screenB": {
+      "dropReasons": {
+        "bandwidthOrAudioPriority": 0,
+        "keyframeWait": 0,
+        "lateOrUnauthorized": 0,
+        "queue": 0,
+        "window": 0
+      },
+      "participants": [
+        "12D3KooWPPW7tySpXnfp7Y2HH7VTc3cAtMBGwXMf3GrQLkZoJp61",
+        "12D3KooWQLYUd2G8iLbpjb4j2jw9GaZKCqfXS3vnuwy3dgcGi4sm"
+      ],
+      "roundTripMs": 0,
+      "active": true,
+      "publishing": false,
+      "playing": "12D3KooWPPW7tySpXnfp7Y2HH7VTc3cAtMBGwXMf3GrQLkZoJp61",
+      "watching": "12D3KooWPPW7tySpXnfp7Y2HH7VTc3cAtMBGwXMf3GrQLkZoJp61",
+      "viewers": 0,
+      "bitrate": 1500000,
+      "maxViewers": 5,
+      "framesIn": 119,
+      "framesOut": 0,
+      "dropped": 0,
+      "bytesIn": 317918,
+      "bytesOut": 0,
+      "peers": [
+        {
+          "statusKnown": true,
+          "id": "12D3KooWPPW7tySpXnfp7Y2HH7VTc3cAtMBGwXMf3GrQLkZoJp61",
+          "name": "a",
+          "sharing": true,
+          "connected": true,
+          "accepted": true
+        }
+      ],
+      "error": ""
+    },
+    "seconds": 4.4328975,
+    "steadyCompleteFPS": 29.758062663368296,
+    "targetSendFPS": 30,
+    "videoFrames": 119,
+    "voiceOnlyA": {
+      "heapBytes": 4188248,
+      "rssBytes": 82804736,
+      "cpuPercent": 3.1215974587699407,
+      "cpuSecs": 0.453125,
+      "goroutines": 174,
+      "uploadBytes": 17360,
+      "downloadBytes": 12434,
+      "uploadBps": 2663.0972240258116,
+      "downloadBps": 2663.0972240258116,
+      "connections": 1,
+      "streams": 1,
+      "lastConnectMs": null,
+      "pingMs": null,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+    },
+    "voiceOnlyB": {
+      "heapBytes": 4200456,
+      "rssBytes": 82808832,
+      "cpuPercent": 3.123840118164125,
+      "cpuSecs": 0.453125,
+      "goroutines": 174,
+      "uploadBytes": 12434,
+      "downloadBytes": 17360,
+      "uploadBps": 2665.010481608179,
+      "downloadBps": 2665.010481608179,
+      "connections": 1,
+      "streams": 1,
+      "lastConnectMs": 3688,
+      "pingMs": null,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+    }
+  }
+}

@@ -7,6 +7,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v4"
+	"log/slog"
 	"projetop2p/internal/community"
 	"projetop2p/internal/invite"
 	"sync"
@@ -18,62 +19,98 @@ type Transport interface {
 	VoiceRequest(context.Context, string, []string, Request) (Response, error)
 }
 type Options struct {
-	BindIP     string
-	Key        crypto.PrivKey
-	State      func(string) (community.State, error)
-	Sync       func(context.Context, string) error
-	Addresses  func(string) []string
-	SelfInvite func() (string, error)
-	Route      func(context.Context, Participant) (string, int, error)
-	Release    func(string)
+	Capture             CaptureFactory
+	CaptureDir          string
+	RegisterStreamRoute func(Participant) error
+	BindIP              string
+	Key                 crypto.PrivKey
+	State               func(string) (community.State, error)
+	Sync                func(context.Context, string) error
+	Addresses           func(string) []string
+	SelfInvite          func() (string, error)
+	Route               func(context.Context, Participant) (string, int, error)
+	Release             func(string)
+}
+type roomPeer struct {
+	firstSeen     time.Time
+	initiator     string
+	participant   Participant
+	slot          int
+	stream        *StreamMedia
+	connecting    bool
+	nextAttempt   time.Time
+	failures      int
+	attemptCancel context.CancelFunc
+	lastError     string
 }
 type call struct {
+	peers                          map[string]*roomPeer
 	ctx                            context.Context
 	cancel                         context.CancelFunc
 	group, channel, session, owner string
 	lease                          Lease
+	authorizationInvalid           bool
+	localPackets                   atomic.Uint64
 	local, remote                  *MediaPeer
+	stream                         *StreamMedia
 	remoteID, remoteSession, nonce string
 	answer                         *webrtc.SessionDescription
 	setting                        bool
+	mediaNonces                    map[string]int64
 	muted, deaf                    atomic.Bool
 	lastError                      string
+	authorizationError, mediaError string
 	started                        time.Time
 }
 type Service struct {
-	pending   *call
-	closing   bool
-	handlers  sync.WaitGroup
-	mu        sync.Mutex
-	engine    *Engine
-	authority *Authority
-	options   Options
-	id        string
-	transport Transport
-	ctx       context.Context
-	cancel    context.CancelFunc
-	current   *call
-	lastError string
-	wg        sync.WaitGroup
+	sound       *screenSound
+	soundMu     sync.Mutex
+	screen      *screenCall
+	pending     *call
+	closing     bool
+	handlers    sync.WaitGroup
+	mu          sync.Mutex
+	engine      *Engine
+	localEngine *Engine
+	authority   *Authority
+	options     Options
+	id          string
+	transport   Transport
+	ctx         context.Context
+	cancel      context.CancelFunc
+	current     *call
+	lastError   string
+	wg          sync.WaitGroup
 }
 type ParticipantView struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Self  bool   `json:"self"`
-	State string `json:"state"`
+	ConnectionError string     `json:"connectionError"`
+	Muted           *bool      `json:"muted,omitempty"`
+	Deaf            *bool      `json:"deaf,omitempty"`
+	ID              string     `json:"id"`
+	Name            string     `json:"name"`
+	Self            bool       `json:"self"`
+	State           string     `json:"state"`
+	Slot            int        `json:"slot"`
+	Media           MediaStats `json:"media"`
 }
 type View struct {
-	Joined       bool              `json:"joined"`
-	Community    string            `json:"community"`
-	Channel      string            `json:"channel"`
-	Session      string            `json:"session"`
-	Muted        bool              `json:"muted"`
-	Deaf         bool              `json:"deaf"`
-	Participants []ParticipantView `json:"participants"`
-	Media        MediaStats        `json:"media"`
-	Error        string            `json:"error"`
-	Expires      int64             `json:"expires"`
-	Scope        string            `json:"scope"`
+	AuthorizationError string            `json:"authorizationError"`
+	MediaError         string            `json:"mediaError"`
+	CommunityName      string            `json:"communityName,omitempty"`
+	ChannelName        string            `json:"channelName,omitempty"`
+	Joined             bool              `json:"joined"`
+	Community          string            `json:"community"`
+	Channel            string            `json:"channel"`
+	Session            string            `json:"session"`
+	Muted              bool              `json:"muted"`
+	Deaf               bool              `json:"deaf"`
+	Participants       []ParticipantView `json:"participants"`
+	Media              MediaStats        `json:"media"`
+	Error              string            `json:"error"`
+	Authorization      string            `json:"authorization"`
+	BridgePackets      uint64            `json:"bridgePackets"`
+	Expires            int64             `json:"expires"`
+	Scope              string            `json:"scope"`
 }
 
 func NewService(parent context.Context, o Options) (*Service, error) {
@@ -81,9 +118,14 @@ func NewService(parent context.Context, o Options) (*Service, error) {
 	if e != nil {
 		return nil, e
 	}
+	localEngine, e := NewEngine("0.0.0.0")
+	if e != nil {
+		engine.Close()
+		return nil, e
+	}
 	ctx, cancel := context.WithCancel(parent)
 	id, _ := peer.IDFromPrivateKey(o.Key)
-	s := &Service{engine: engine, authority: NewAuthority(o.Key, o.State), options: o, id: id.String(), ctx: ctx, cancel: cancel}
+	s := &Service{engine: engine, localEngine: localEngine, authority: NewAuthority(o.Key, o.State), options: o, id: id.String(), ctx: ctx, cancel: cancel}
 	s.wg.Add(2)
 	go s.guard()
 	go s.watch()
@@ -96,7 +138,7 @@ func (s *Service) authorityRequest(ctx context.Context, c *call, method string) 
 	if e != nil {
 		return nil, e
 	}
-	r := Request{Method: method, Community: c.group, Channel: c.channel, Participant: Participant{ID: s.id, Session: c.session, Invite: ticket, UDPPort: s.Port()}}
+	r := Request{Nonce: community.RandomID(), Method: method, Community: c.group, Channel: c.channel, Participant: Participant{ID: s.id, Session: c.session, Invite: ticket, UDPPort: s.Port()}}
 	var result Response
 	if c.owner == s.id {
 		result = s.authority.Handle(s.id, r)
@@ -152,7 +194,7 @@ func (s *Service) Join(ctx context.Context, group, channel string, offer webrtc.
 	if offer.Type != webrtc.SDPTypeOffer {
 		return webrtc.SessionDescription{}, errors.New("local audio offer required")
 	}
-	if e := CheckAudioSDP(offer); e != nil {
+	if e := CheckLocalAudioSDP(offer); e != nil {
 		return webrtc.SessionDescription{}, e
 	}
 	s.mu.Lock()
@@ -166,7 +208,7 @@ func (s *Service) Join(ctx context.Context, group, channel string, offer webrtc.
 		return webrtc.SessionDescription{}, errors.New("voice permission unavailable")
 	}
 	callCtx, cancel := context.WithCancel(s.ctx)
-	c := &call{ctx: callCtx, cancel: cancel, group: group, channel: channel, session: community.RandomID(), owner: state.Owner, started: time.Now()}
+	c := &call{ctx: callCtx, cancel: cancel, group: group, channel: channel, session: community.RandomID(), owner: state.Owner, started: time.Now(), peers: map[string]*roomPeer{}}
 	s.mu.Lock()
 	if s.current != nil || s.pending != nil {
 		s.mu.Unlock()
@@ -201,18 +243,7 @@ func (s *Service) Join(ctx context.Context, group, channel string, offer webrtc.
 	}
 	c.lease = *lease
 	granted = true
-	local, e := s.engine.Peer(func(packet *rtp.Packet) {
-		s.mu.Lock()
-		active := s.current
-		var remote *MediaPeer
-		if active == c && !c.muted.Load() && !c.deaf.Load() && time.Now().Unix() < c.lease.Expires {
-			remote = c.remote
-		}
-		s.mu.Unlock()
-		if remote != nil {
-			_ = remote.Write(packet)
-		}
-	})
+	local, e := s.localPeer(c)
 	if e != nil {
 		cancel()
 		return webrtc.SessionDescription{}, e
@@ -256,15 +287,34 @@ func (s *Service) Join(ctx context.Context, group, channel string, offer webrtc.
 	s.mu.Unlock()
 	return *local.PC.LocalDescription(), nil
 }
-func (s *Service) Controls(muted, deaf bool) {
+func (s *Service) Controls(muted, deaf bool) { _ = s.controls("", muted, deaf) }
+func (s *Service) ControlsForSession(session string, muted, deaf bool) error {
+	if session == "" {
+		return errors.New("voice control session required")
+	}
+	return s.controls(session, muted, deaf)
+}
+func (s *Service) controls(session string, muted, deaf bool) error {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	if session != "" && (s.current == nil || s.current.session != session) {
+		return errors.New("stale voice control session")
+	}
 	if c := s.current; c != nil {
 		c.muted.Store(muted)
 		c.deaf.Store(deaf)
+		if muted || deaf {
+			for _, p := range c.peers {
+				if p.stream != nil {
+					p.stream.Flush()
+				}
+			}
+		}
 	}
-	s.mu.Unlock()
+	return nil
 }
 func (s *Service) stop(c *call, message string) {
+	s.screenStop(nil, c)
 	s.mu.Lock()
 	if s.current != c {
 		s.mu.Unlock()
@@ -274,7 +324,16 @@ func (s *Service) stop(c *call, message string) {
 	s.lastError = message
 	c.cancel()
 	local, remote, id := c.local, c.remote, c.remoteID
+	stream := c.stream
+	for _, p := range c.peers {
+		if p.stream != nil {
+			p.stream.Close()
+		}
+	}
 	s.mu.Unlock()
+	if stream != nil {
+		stream.Close()
+	}
 	if local != nil {
 		local.Close()
 	}
@@ -321,13 +380,51 @@ func (s *Service) guard() {
 			continue
 		}
 		state, e := s.options.State(c.group)
-		if e != nil || !permitted(state, c.channel, s.id) || lease.Expires <= time.Now().Unix() {
-			s.stop(c, "Autorizacao de voz expirada ou revogada; microfone desconectado")
+		if e != nil || !permitted(state, c.channel, s.id) {
+			s.stop(c, "Participacao de voz indisponivel ou revogada")
 			continue
 		}
-		if VerifyLease(lease, state, c.channel, time.Now()) != nil {
-			s.stop(c, "Permissoes da comunidade mudaram; entre novamente para obter autorizacao atual")
+		validationErr := VerifyLease(lease, state, c.channel, time.Now())
+		if validationErr != nil {
+			s.mu.Lock()
+			if s.current == c && c.lease.Sequence == lease.Sequence && c.lease.Generation == lease.Generation && c.lease.Expires == lease.Expires {
+				if !c.authorizationInvalid {
+					slog.Warn("voice_authorization", "session", correlation(c.session), "result", "paused", "reason", validationErr.Error())
+				}
+				c.authorizationError = validationErr.Error()
+				c.authorizationInvalid = true
+				for _, p := range c.peers {
+					if p.attemptCancel != nil {
+						p.attemptCancel()
+					}
+					if p.stream != nil {
+						p.stream.closeReason("local", "authorization_invalid")
+						p.stream = nil
+					}
+				}
+				c.lastError = "Midia pausada: aguardando autorizacao atual da sala"
+				for id, p := range c.peers {
+					if !permitted(state, c.channel, id) {
+						if p.stream != nil {
+							p.stream.Close()
+						}
+						delete(c.peers, id)
+					}
+				}
+			}
+			s.mu.Unlock()
+		} else {
+			s.mu.Lock()
+			if s.current == c && c.lease.Generation == lease.Generation && c.lease.Sequence == lease.Sequence {
+				c.authorizationInvalid = false
+			}
+			t, ok := s.transport.(StreamTransport)
+			s.mu.Unlock()
+			if ok {
+				s.reconcileMesh(c, lease, t)
+			}
 		}
+
 	}
 }
 func (s *Service) watch() {
@@ -347,17 +444,41 @@ func (s *Service) watch() {
 			continue
 		}
 		ctx, cancel := context.WithTimeout(c.ctx, 10*time.Second)
-		if s.options.Sync != nil {
-			_ = s.options.Sync(ctx, c.group)
-		}
 		lease, e := s.authorityRequest(ctx, c, "renew")
 		cancel()
+		reason := ""
+		if e != nil {
+			reason = e.Error()
+		}
+		slog.Info("voice_authorization", "session", correlation(c.session), "result", map[bool]string{true: "renew_failed", false: "renewed"}[e != nil], "reason", reason)
+		if s.options.Sync != nil {
+			syncCtx, stop := context.WithTimeout(c.ctx, 2*time.Second)
+			_ = s.options.Sync(syncCtx, c.group)
+			stop()
+		}
+		if e == nil {
+			state, stateErr := s.options.State(c.group)
+			if stateErr != nil {
+				e = stateErr
+			} else {
+				e = VerifyLease(*lease, state, c.channel, time.Now())
+			}
+		}
 		if e != nil {
 			s.mu.Lock()
-			if s.current == c {
-				c.lastError = e.Error()
+			cached := c.lease
+			t, streamCapable := s.transport.(StreamTransport)
+			active := s.current == c
+			if active {
+				c.authorizationError = e.Error()
+				c.lastError = "Renovação indisponível; somente autorização assinada ainda válida: " + e.Error()
 			}
 			s.mu.Unlock()
+			if active && streamCapable {
+				if state, err := s.options.State(c.group); err == nil && VerifyLease(cached, state, c.channel, time.Now()) == nil {
+					s.reconcileMesh(c, cached, t)
+				}
+			}
 			continue
 		}
 		s.mu.Lock()
@@ -365,13 +486,28 @@ func (s *Service) watch() {
 			s.mu.Unlock()
 			continue
 		}
+		if !leaseCanAdvance(*lease, c.lease) {
+			s.mu.Unlock()
+			continue
+		}
 		c.lease = *lease
-		c.lastError = ""
+		c.authorizationInvalid = false
+		c.authorizationError = ""
+		c.lastError = c.mediaError
+		if t, ok := s.transport.(StreamTransport); ok {
+			s.mu.Unlock()
+			s.reconcileMesh(c, *lease, t)
+			continue
+		}
 		var other Participant
 		for _, p := range lease.Participants {
 			if p.ID != s.id {
 				other = p
 			}
+		}
+		if c.stream != nil && (other.ID != c.remoteID || other.Session != c.remoteSession) {
+			c.stream.Close()
+			c.stream = nil
 		}
 		oldRemote := ""
 		var closePeer *MediaPeer
@@ -382,7 +518,8 @@ func (s *Service) watch() {
 			c.remoteID = ""
 			c.answer = nil
 		}
-		shouldStart := other.ID != "" && s.id < other.ID && !c.setting && (c.remote == nil || c.remote.Stats().State == "failed" || c.remote.Stats().State == "closed")
+		_, streamCapable := s.transport.(StreamTransport)
+		shouldStart := other.ID != "" && s.id < other.ID && !c.setting && ((streamCapable && (c.stream == nil || c.stream.Stats().State != "connected")) || (!streamCapable && (c.remote == nil || c.remote.Stats().State == "failed" || c.remote.Stats().State == "closed")))
 		if shouldStart {
 			if c.remote != nil {
 				closePeer = c.remote
@@ -409,7 +546,7 @@ func (s *Service) newRemote(c *call) (*MediaPeer, error) {
 		s.mu.Lock()
 		active := s.current
 		var local *MediaPeer
-		if active == c && !c.deaf.Load() && time.Now().Unix() < c.lease.Expires {
+		if active == c && !c.deaf.Load() && !c.authorizationInvalid && time.Now().Unix() < c.lease.Expires {
 			local = c.local
 		}
 		s.mu.Unlock()
@@ -426,6 +563,13 @@ func (s *Service) connect(c *call, other Participant) {
 		}
 		s.mu.Unlock()
 	}()
+	s.mu.Lock()
+	st, streamCapable := s.transport.(StreamTransport)
+	s.mu.Unlock()
+	if streamCapable {
+		s.connectStream(c, other, st)
+		return
+	}
 	ctx, cancel := context.WithTimeout(c.ctx, 35*time.Second)
 	defer cancel()
 	ip, port, e := s.options.Route(ctx, other)
@@ -518,6 +662,7 @@ func (s *Service) connect(c *call, other Participant) {
 func (s *Service) setError(c *call, e error) {
 	s.mu.Lock()
 	if s.current == c {
+		c.mediaError = e.Error()
 		c.lastError = e.Error()
 	}
 	s.mu.Unlock()
@@ -596,6 +741,10 @@ func (s *Service) Handle(ctx context.Context, remote string, r Request) Response
 	if c.setting {
 		s.mu.Unlock()
 		return fail("signaling busy")
+	}
+	if c.stream != nil && c.stream.Stats().State == "connected" {
+		s.mu.Unlock()
+		return fail("active media session; replay or glare rejected")
 	}
 	if c.remote != nil {
 		if c.remoteID == remote && c.nonce == r.Nonce && c.answer != nil {
@@ -679,7 +828,7 @@ func (s *Service) Handle(ctx context.Context, remote string, r Request) Response
 func (s *Service) View() View {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	v := View{Participants: []ParticipantView{}, Error: s.lastError, Scope: "Opus/DTLS-SRTP entre processos; ICE UDP via adaptador. Transporte externo EasyTier pode usar relay TCP; metricas nao presumem caminho direto."}
+	v := View{Participants: []ParticipantView{}, Error: s.lastError, Scope: "Opus/20ms em stream libp2p criptografado; TCP pode aumentar latencia por retransmissao. WebRTC local para captura/reproducao."}
 	c := s.current
 	if c == nil {
 		return v
@@ -691,18 +840,48 @@ func (s *Service) View() View {
 	v.Muted = c.muted.Load()
 	v.Deaf = c.deaf.Load()
 	v.Error = c.lastError
+	v.AuthorizationError = c.authorizationError
+	v.MediaError = c.mediaError
 	v.Expires = c.lease.Expires
-	if c.remote != nil {
+	v.BridgePackets = c.localPackets.Load()
+	v.Authorization = "valid"
+	if c.authorizationInvalid || c.lease.Expires <= time.Now().Unix() {
+		v.Authorization = "paused"
+	}
+	v.Media = MediaStats{Transport: "libp2p-stream", State: "waiting"}
+	if len(c.peers) == 0 && c.remote != nil {
 		v.Media = c.remote.Stats()
 	}
 	for _, p := range c.lease.Participants {
-		state := "aguardando"
-		if p.ID == s.id {
-			state = "local"
-		} else if c.remote != nil && c.remoteID == p.ID {
-			state = c.remote.Stats().State
+		view := ParticipantView{ID: p.ID, Name: p.Name, Self: p.ID == s.id, State: "waiting", Slot: -1}
+		if view.Self {
+			view.State = "local"
+		} else if remote := c.peers[p.ID]; remote != nil {
+			view.Slot = remote.slot
+			view.ConnectionError = remote.lastError
+			if remote.connecting {
+				view.State = "connecting"
+			} else if remote.failures > 0 {
+				view.State = "reconnecting"
+			}
+			if remote.stream != nil {
+				view.Media = remote.stream.Stats()
+				view.State = view.Media.State
+				v.Media.PacketsIn += view.Media.PacketsIn
+				v.Media.PacketsOut += view.Media.PacketsOut
+				v.Media.BytesIn += view.Media.BytesIn
+				v.Media.BytesOut += view.Media.BytesOut
+				v.Media.Dropped += view.Media.Dropped
+				if view.State == "connected" {
+					v.Media.State = "connected"
+				}
+			}
 		}
-		v.Participants = append(v.Participants, ParticipantView{ID: p.ID, Name: p.Name, Self: p.ID == s.id, State: state})
+		v.Participants = append(v.Participants, view)
+	}
+
+	if v.Authorization != "valid" {
+		v.Media.State = "authorization-paused"
 	}
 	return v
 }
@@ -723,6 +902,7 @@ func (s *Service) Close() {
 	s.wg.Wait()
 	s.handlers.Wait()
 	s.engine.Close()
+	s.localEngine.Close()
 }
 func addresses(raw string) []string {
 	ticket, e := parseInvitation(raw)
@@ -734,4 +914,111 @@ func addresses(raw string) []string {
 func parseInvitation(raw string) ([]string, error) {
 	i, e := invite.Parse(raw, time.Now())
 	return i.Addresses, e
+}
+
+func (s *Service) localPeer(c *call) (*MediaPeer, error) {
+	return s.localEngine.Peer(func(packet *rtp.Packet) {
+		c.localPackets.Add(1)
+		s.mu.Lock()
+		active := s.current
+		var remote *MediaPeer
+		if active == c && !c.muted.Load() && !c.deaf.Load() && !c.authorizationInvalid && time.Now().Unix() < c.lease.Expires {
+			remote = c.remote
+			for _, p := range c.peers {
+				if p.stream != nil {
+					p.stream.Push(packet)
+				}
+			}
+		}
+		s.mu.Unlock()
+		if remote != nil {
+			_ = remote.Write(packet)
+		}
+	}, 5)
+}
+
+// Repair only the local WebRTC bridge. Membership, authorization and network media survive.
+func (s *Service) Rebind(ctx context.Context, offer webrtc.SessionDescription) (webrtc.SessionDescription, error) {
+	if offer.Type != webrtc.SDPTypeOffer {
+		return webrtc.SessionDescription{}, errors.New("audio offer required")
+	}
+	if e := CheckLocalAudioSDP(offer); e != nil {
+		return webrtc.SessionDescription{}, e
+	}
+	s.mu.Lock()
+	c := s.current
+	if s.closing || c == nil || c.lease.Expires <= time.Now().Unix() {
+		s.mu.Unlock()
+		return webrtc.SessionDescription{}, errors.New("no active authorized room")
+	}
+	lease := c.lease
+	s.handlers.Add(1)
+	s.mu.Unlock()
+	defer s.handlers.Done()
+	state, e := s.options.State(c.group)
+	if e != nil {
+		return webrtc.SessionDescription{}, e
+	}
+	if e = VerifyLease(lease, state, c.channel, time.Now()); e != nil {
+		return webrtc.SessionDescription{}, e
+	}
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	stop := context.AfterFunc(c.ctx, cancel)
+	defer stop()
+	local, e := s.localPeer(c)
+	if e != nil {
+		return webrtc.SessionDescription{}, e
+	}
+	keep := false
+	defer func() {
+		if !keep {
+			local.Close()
+		}
+	}()
+	if e = local.PC.SetRemoteDescription(offer); e != nil {
+		return webrtc.SessionDescription{}, e
+	}
+	answer, e := local.PC.CreateAnswer(nil)
+	if e != nil {
+		return answer, e
+	}
+	ready := webrtc.GatheringCompletePromise(local.PC)
+	if e = local.PC.SetLocalDescription(answer); e != nil {
+		return answer, e
+	}
+	select {
+	case <-ready:
+	case <-ctx.Done():
+		return answer, ctx.Err()
+	}
+	s.mu.Lock()
+	if s.current != c || ctx.Err() != nil {
+		s.mu.Unlock()
+		return answer, errors.New("call ended during local repair")
+	}
+	old := c.local
+	c.local = local
+	keep = true
+	s.mu.Unlock()
+	if old != nil {
+		old.Close()
+	}
+	return *local.PC.LocalDescription(), nil
+}
+
+// Presence metadata is accepted only for an active, owner-authorized room session.
+func (s *Service) HasSession(group, channel, id, session string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := s.current
+	if c == nil || c.group != group || c.channel != channel || time.Now().Unix() >= c.lease.Expires {
+		return false
+	}
+	for _, p := range c.lease.Participants {
+		if p.ID == id && p.Session == session {
+			return true
+		}
+	}
+	return false
 }

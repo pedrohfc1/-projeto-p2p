@@ -4,11 +4,18 @@ import (
 	"fmt"
 	"projetop2p/internal/adapters"
 	"projetop2p/internal/localdb"
+	"time"
 )
 
 func (c *Core) synchronizeIntegrated(s localdb.Settings) {
 	fingerprint := fmt.Sprintf("integrated|%d|%s|%v|%s", port(s), s.IntegratedBinaryDir, s.IntegratedRelays, s.IntegratedRelayKey)
-	items, _ := c.enumerate()
+	// Integrated sockets do not bind a VPN adapter. Avoid spawning Windows
+	// adapter discovery on each UI/status poll; the helper handles WAN changes.
+	items := c.selection.Adapters
+	if c.selection.Mode != "integrated" || time.Since(c.adapterChecked) >= 30*time.Second {
+		items, _ = c.enumerate()
+		c.adapterChecked = time.Now()
+	}
 	selection, _ := adapters.Select(items, "auto", "")
 	selection.Mode = "integrated"
 	selection.Selected = nil

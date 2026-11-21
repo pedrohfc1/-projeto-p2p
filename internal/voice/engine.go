@@ -1,4 +1,4 @@
-// Package voice provides authenticated-room media primitives. It never captures audio.
+// Package voice provides authenticated-room media and explicitly consented Windows screen audio. Microphone capture stays in the frontend.
 package voice
 
 import (
@@ -24,6 +24,9 @@ type Engine struct {
 	api    *webrtc.API
 }
 type MediaPeer struct {
+	slotMu         sync.Mutex
+	slotSequence   [5]uint16
+	slotTimestamp  [5]uint32
 	metricsMu      sync.Mutex
 	started        time.Time
 	samples        uint64
@@ -34,6 +37,7 @@ type MediaPeer struct {
 	rtt            *float64
 	PC             *webrtc.PeerConnection
 	Track          *webrtc.TrackLocalStaticRTP
+	Tracks         []*webrtc.TrackLocalStaticRTP
 	received       atomic.Uint64
 	sent           atomic.Uint64
 	bytesIn        atomic.Uint64
@@ -41,14 +45,19 @@ type MediaPeer struct {
 	state          atomic.Value
 }
 type MediaStats struct {
-	JitterMs    *float64 `json:"jitterMs"`
-	PacketsLost *int64   `json:"packetsLost"`
-	RoundTripMs *float64 `json:"roundTripMs"`
-	State       string   `json:"state"`
-	PacketsIn   uint64   `json:"packetsIn"`
-	PacketsOut  uint64   `json:"packetsOut"`
-	BytesIn     uint64   `json:"bytesIn"`
-	BytesOut    uint64   `json:"bytesOut"`
+	LastReceiveMs int64    `json:"lastReceiveMs"`
+	QueueDepth    int      `json:"queueDepth"`
+	Dropped       uint64   `json:"dropped"`
+	QueueDelayMs  float64  `json:"queueDelayMs"`
+	Transport     string   `json:"transport"`
+	JitterMs      *float64 `json:"jitterMs"`
+	PacketsLost   *int64   `json:"packetsLost"`
+	RoundTripMs   *float64 `json:"roundTripMs"`
+	State         string   `json:"state"`
+	PacketsIn     uint64   `json:"packetsIn"`
+	PacketsOut    uint64   `json:"packetsOut"`
+	BytesIn       uint64   `json:"bytesIn"`
+	BytesOut      uint64   `json:"bytesOut"`
 }
 
 func NewEngine(ip string) (*Engine, error) {
@@ -82,12 +91,12 @@ func NewEngine(ip string) (*Engine, error) {
 }
 func (e *Engine) Port() int { return e.socket.LocalAddr().(*net.UDPAddr).Port }
 func (e *Engine) Close()    { e.mux.Close(); e.socket.Close() }
-func (e *Engine) Peer(onPacket func(*rtp.Packet)) (*MediaPeer, error) {
+func (e *Engine) Peer(onPacket func(*rtp.Packet), slots ...int) (*MediaPeer, error) {
 	pc, err := e.api.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
 		return nil, err
 	}
-	track, err := webrtc.NewTrackLocalStaticRTP(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2, SDPFmtpLine: "minptime=10;useinbandfec=1;stereo=0;sprop-stereo=0"}, "audio", "p2p-voice")
+	track, err := webrtc.NewTrackLocalStaticRTP(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2, SDPFmtpLine: "minptime=10;useinbandfec=1;stereo=0;sprop-stereo=0"}, "audio", "p2p-voice-slot-0")
 	if err != nil {
 		pc.Close()
 		return nil, err
@@ -98,6 +107,36 @@ func (e *Engine) Peer(onPacket func(*rtp.Packet)) (*MediaPeer, error) {
 		return nil, err
 	}
 	p := &MediaPeer{PC: pc, Track: track, started: time.Now()}
+	p.Tracks = []*webrtc.TrackLocalStaticRTP{track}
+	count := 1
+	if len(slots) > 0 {
+		count = slots[0]
+	}
+	if count < 1 || count > 5 {
+		pc.Close()
+		return nil, errors.New("invalid local media slots")
+	}
+	for i := 1; i < count; i++ {
+		extra, err := webrtc.NewTrackLocalStaticRTP(track.Codec(), fmt.Sprint("audio-", i), fmt.Sprint("p2p-voice-slot-", i))
+		if err != nil {
+			pc.Close()
+			return nil, err
+		}
+		sender, err := pc.AddTrack(extra)
+		if err != nil {
+			pc.Close()
+			return nil, err
+		}
+		p.Tracks = append(p.Tracks, extra)
+		go func() {
+			buf := make([]byte, 1500)
+			for {
+				if _, _, e := sender.Read(buf); e != nil {
+					return
+				}
+			}
+		}()
+	}
 	p.state.Store("new")
 	go func() {
 		for {
@@ -199,8 +238,10 @@ func (p *MediaPeer) Stats() MediaStats {
 	return result
 }
 
-func (p *MediaPeer) Close() { p.PC.Close() }
-func CheckAudioSDP(d webrtc.SessionDescription) error {
+func (p *MediaPeer) Close()                                { p.PC.Close() }
+func CheckAudioSDP(d webrtc.SessionDescription) error      { return checkAudioSDP(d, 1) }
+func CheckLocalAudioSDP(d webrtc.SessionDescription) error { return checkAudioSDP(d, 5) }
+func checkAudioSDP(d webrtc.SessionDescription, maxAudio int) error {
 	if len(d.SDP) > 32768 || !strings.Contains(d.SDP, "a=fingerprint:sha-256 ") {
 		return errors.New("invalid authenticated audio SDP")
 	}
@@ -214,7 +255,7 @@ func CheckAudioSDP(d webrtc.SessionDescription) error {
 			audio++
 		}
 	}
-	if audio != 1 {
+	if audio < 1 || audio > maxAudio {
 		return errors.New("one audio media section required")
 	}
 	return nil
@@ -250,4 +291,23 @@ func ForwardSDP(d webrtc.SessionDescription, ip string, port int) (webrtc.Sessio
 	}
 	d.SDP = strings.Join(lines, "\n")
 	return d, nil
+}
+
+func (p *MediaPeer) WriteSlot(slot int, packet *rtp.Packet) error {
+	if slot < 0 || slot >= len(p.Tracks) || p.Stats().State != "connected" {
+		return errors.New("local track not ready")
+	}
+	p.slotMu.Lock()
+	defer p.slotMu.Unlock()
+	copy := packet.Clone()
+	p.slotSequence[slot]++
+	p.slotTimestamp[slot] += 960
+	copy.SequenceNumber = p.slotSequence[slot]
+	copy.Timestamp = p.slotTimestamp[slot]
+	e := p.Tracks[slot].WriteRTP(copy)
+	if e == nil {
+		p.sent.Add(1)
+		p.bytesOut.Add(uint64(packet.MarshalSize()))
+	}
+	return e
 }

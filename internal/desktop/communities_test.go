@@ -113,7 +113,7 @@ func TestCommunitiesAuthenticatedRolesSyncAndRevocation(t *testing.T) {
 	defer cancel()
 	r, _ := owner.db.Community(group)
 	response, e := outsider.node.CommunityRequest(ctx, r.Owner, owner.node.Addresses(), community.Request{Method: "sync", CommunityID: group})
-	if e != nil || response.Code != "forbidden" || len(response.Commits) != 0 {
+	if e != nil || response.Code != "membership_required" || len(response.Commits) != 0 {
 		t.Fatal(response, e)
 	}
 	genesis, _ := owner.db.CommunityEvent(group, 1)
@@ -191,14 +191,14 @@ func TestCommunityOutboxSurvivesOwnerOutageAndRestart(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	queued, e := member.groups.Action(ctx, group, community.Text, community.Body{ChannelID: "geral", Text: "offline durable"})
 	cancel()
-	if e != nil || queued.Status != "pendente" {
+	if e != nil || queued.Status != "salva localmente" && queued.Status != "replicada" {
 		t.Fatal(queued, e)
 	}
 	member.Close()
 	member = nil
 	member = communityCore(t, memberDir, "Membro", memberPort)
 	view, e := member.CommunityState(group, "geral", 0)
-	if e != nil || len(view.Messages) != 1 || view.Messages[0].ID != queued.ID || view.Messages[0].Sequence != 0 {
+	if e != nil || len(view.Messages) != 1 || view.Messages[0].ID != queued.ID || view.Messages[0].Status != "assinada pelo autor" {
 		t.Fatal("outbox lost", view, e)
 	}
 	owner = communityCore(t, ownerDir, "Dona", ownerPort)

@@ -1,0 +1,46 @@
+{
+  "version": "0.9.9",
+  "private": true,
+  "published": false,
+  "appSHA256": "c399cf57b705cd8f61e50753912af053490bf6ff3d55f2f7b5f8f2649bbc72de",
+  "nativeCaptureHelperSHA256": "f31cfaca5da22382ec4b7eed434e22d58e0923b59b3c071d10efcde078d6ee23",
+  "preservation": {
+    "baseline": "0.9.8",
+    "unchangedFiles": 61,
+    "voiceCodecTransportAuthorizationUnchanged": true,
+    "videoAndWASAPISourcesUnchanged": true,
+    "rollbackSourceSHA256": "a433004dddab57cebdfc4e7ba98efa0a10e0e789b9ee8d4220bbf14f1b253ec3"
+  },
+  "diagnosis": {
+    "provenCodeGap": "Voice remote RTC tracks previously went only to WebAudio; no direct RTC consumer. Screen audio prepares a direct RTC media element even without native capture.",
+    "triggerPath": "checkbox -> ScreenSoundBridge.prepare/connect -> setRemoteDescription/ontrack -> direct HTMLMediaElement.play",
+    "physicalCauseVerified": false,
+    "inference": "Indirect activation of Chromium RTC playout by the screen-audio player is consistent with the user reproduction and the renderer implementation; affected WebView2 not measured here."
+  },
+  "passed": [
+    "76 frontend tests: direct remote RTC consumer before mixer, independent gains/mute, bounded telemetry counts, blocked play/retry, source failure cleanup, reset/close and late rejection cancellation; existing microphone/monitor/WASAPI-policy tests",
+    "npm ci, TypeScript/Vite production build",
+    "go test -timeout 3m ./...; go vet ./...",
+    "Windows/Linux CLI compilation and signed-text/bootstrap-outage/identity/address-recovery smoke with three processes",
+    "2 and 3 independent local production processes with generated Opus (75.95s)",
+    "Encrypted EasyTier voice+video+screen-audio/chat, authorization and cleanup with synthetic sources (39.59s)",
+    "Three peers: owner unavailable, stream reset, recovery (91.12s)",
+    "Prompt-v1 Windows native Wails build; no automatic permission grants",
+    "61 video/WASAPI/core codec/transport/authorization files unchanged against rollback0.9.8"
+  ],
+  "telemetryScope": {
+    "network": "Actual backend per-participant counters and local RTC RTP stats",
+    "decodedOpusFrames": "null if runtime does not expose; never inferred from packets",
+    "outputGraph": "Actual transparent worklet sample/quanta counts, not PCM; not acoustic confirmation",
+    "physicalPlayback": "not measurable via WebView"
+  },
+  "pending": [
+    "Hear real remote speech on the affected Windows WebView2 without WASAPI; actual before/after-engine comparison",
+    "Physical microphone/output switch, WASAPI toggles, game audio/echo and screen share on two PCs",
+    "Reconnection/minimization and multiple real Windows devices",
+    "Full GUI installer upgrade, HKCU/reboot, real capture/render CPU/FPS",
+    "Linux desktop and race tests unavailable in this Windows environment"
+  ],
+  "browserProbe": "Headless Edge could not launch (process exited / Crashpad pipe). No browser or physical playback pass claimed.",
+  "security": "Private beta only; existing public-release blockers/quarantined DHT unchanged; no new codec/transport or dependencies."
+}

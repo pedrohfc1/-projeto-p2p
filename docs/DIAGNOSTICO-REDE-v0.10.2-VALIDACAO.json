@@ -1,0 +1,20 @@
+{
+  "version": "0.10.2",
+  "scope": "partial diagnostic instrumentation",
+  "frontendTests": 97,
+  "goAll": true,
+  "goVet": true,
+  "realAuthenticatedLoopbackPeerCounters": true,
+  "peerCounterBound": 256,
+  "boundedHistoryTests": true,
+  "cliThreeProcessSmoke": true,
+  "windowsLinuxCLI": true,
+  "installerPayloadVerified": true,
+  "physicalTwoPCs": false,
+  "RadminPhysicalTest": false,
+  "nativeGUIInspectedThisVersion": false,
+  "mediaPerformanceMeasuredThisVersion": false,
+  "throughputTestImplemented": false,
+  "automaticBottleneckCorrelationImplemented": false,
+  "publicRelease": false
+}

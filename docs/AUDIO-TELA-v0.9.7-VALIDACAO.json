@@ -1,0 +1,103 @@
+{
+  "version": "0.9.7",
+  "private": true,
+  "published": false,
+  "rollbackSourceSHA256": "03f80ba1f8f4fa1ccba82082cecd594b95841a8034c065dd942be10a296002ca",
+  "appSHA256": "43654afea78e1684083f7811018f47d23e434d5d093451131f62e235424b9c79",
+  "nativeCaptureHelperSHA256": "40d3dcfd91899517c2a142d2350be95c5ea50f89533c7e97c3c72fa323af722b",
+  "nativeCaptureSourceSHA256": "d45723c5abdaf8cc3f97b0ede2a32386e3a82693b987ced37d2cc8525dfb2500",
+  "passed": [
+    "62 frontend tests; TypeScript/Vite build",
+    "Go ./... and vet ./...",
+    "Windows helper compiled and executed source catalog, own process rejection; no physical capture started",
+    "signed authorization; room+bridge actor fencing; monotonic capture/stop revision and pending-start cancellation; no-consent rejection; bounded PCM/worklet; independent volume/output failure",
+    "authenticated reverse voice initiator and deterministic stream arbitration",
+    "media heartbeat stays available while UI mutex is held",
+    "independent authenticated libp2p screen-audio protocol; no video transport changes",
+    "2 and 3 independent local production processes, generated Opus",
+    "owner/EasyTier outage, stream reset and signed recovery",
+    "voice+video+screen-audio simultaneous over real encrypted EasyTier/libp2p; mocked WASAPI and preencoded RTP sources",
+    "10min separate system-audio service/authorization test using mocked WASAPI and net.Pipe",
+    "chat, communities, viewer departure, reconnect, cleanup",
+    "Windows/Linux CLI build and 3-process CLI regression"
+  ],
+  "combinedMedia": {
+    "seconds": 600.3003668,
+    "generatedFramesSent": 18000,
+    "generatedFramesReceived": 17959,
+    "realDeliveryFPS": 29.916690032580536,
+    "payloadMbps": 0.6498435342951717,
+    "audioFrames": [
+      30014,
+      30014
+    ],
+    "backendA": {
+      "heapBytes": 14135848,
+      "rssBytes": 58892288,
+      "cpuPercent": 9.893476129484064,
+      "cpuSecs": 60.78125,
+      "goroutines": 370,
+      "uploadBytes": 52065772,
+      "downloadBytes": 2170461,
+      "uploadBps": 86194.21207938732,
+      "downloadBps": 3550.7577029112354,
+      "connections": 1,
+      "streams": 3,
+      "lastConnectMs": null,
+      "pingMs": null,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+    },
+    "backendB": {
+      "heapBytes": 14147896,
+      "rssBytes": 58892288,
+      "cpuPercent": 9.893476129484064,
+      "cpuSecs": 60.78125,
+      "goroutines": 370,
+      "uploadBytes": 2170461,
+      "downloadBytes": 52065772,
+      "uploadBps": 3550.7577029112354,
+      "downloadBps": 86194.21207938732,
+      "connections": 1,
+      "streams": 3,
+      "lastConnectMs": 4593.011,
+      "pingMs": null,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+    }
+  },
+  "combinedSystemAudio": {
+    "seconds": 600.3,
+    "packetsReceived": 30014,
+    "scope": "Two production cores on one Windows host, actual EasyTier+Noise/libp2p, generated Opus/VP8. Native WASAPI source replaced with a fake driver; browser codec/worklet and physical audio are not exercised by this transport test."
+  },
+  "pending": [
+    "Physical microphone and audible voice between two Windows computers",
+    "Actual WASAPI game/browser/system capture, source/device change and physical echo check",
+    "Two-house integrated network and real Radmin VPN repeat",
+    "WebView2 PCM bridge/encoder/playback under real hardware load; actual input-to-speaker and fine A/V sync latency",
+    "Whole-device legacy loopback can include received audio; separate physical playback output required",
+    "Whole-app CPU/RAM includes WebView/helper processes not included in Go resource samples",
+    "Full interactive install/upgrade/HKCU/reboot; 1080p60 real capture/display remains unvalidated"
+  ],
+  "initialFailure": {
+    "test": "first 097-media-regression.log",
+    "elapsedSeconds": 292.62,
+    "reason": "publication interrupted; media heartbeat shared Core.mu with UI/network polling",
+    "correction": "atomic active media service handle; no timeout widening",
+    "finalRepeatPassed": true
+  },
+  "videoPreserved": {
+    "unchangedVideoFiles": [
+      "internal/voice/screen_engine.go",
+      "internal/voice/screen_frame.go",
+      "internal/voice/screen_pipe.go",
+      "frontend/src/screenCapture.ts",
+      "frontend/src/ScreenViewer.tsx"
+    ],
+    "videoPlayerFunctionUnchanged": true
+  },
+  "security": "Explicit local consent, selected source identity and signed room/session/viewer authorization required. No recordings, Npcap, firewall, routes or DNS changes. Local diagnostics only."
+}

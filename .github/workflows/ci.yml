@@ -55,6 +55,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
           echo 'GOFLAGS=-tags=webkit2_41' >> "$GITHUB_ENV"
+      - name: Build Windows WASAPI helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/build-loopback.ps1
       - name: Frontend tests and build
         working-directory: frontend
         run: |
@@ -93,7 +97,7 @@ jobs:
         run: |
           sh scripts/desktop-linux.sh
           sh scripts/build.sh
-          test "$(build/bin/ProjetoP2P --version)" = "$(cat VERSION)"
+          test "$(build/bin/PeeTwoPee --version)" = "$(cat VERSION)"
           python3 scripts/package-distribution.py linux
       - name: Local network regression Windows
         if: runner.os == 'Windows'

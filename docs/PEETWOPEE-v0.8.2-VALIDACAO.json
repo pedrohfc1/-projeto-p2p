@@ -1,0 +1,53 @@
+{
+  "version": "0.8.2",
+  "date": "2026-11-05",
+  "distribution": "private beta, no public release",
+  "features": [
+    "Persistent compact bottom-left call panel in the profile dock; verified local channel/community labels, avatar/name, connection/microphone/output states",
+    "Six quick controls: microphone, deaf, screen, disabled future camera, disconnect, voice settings; tooltips and pressed/disabled states",
+    "Call duration uses monotonic session time; visual timer pauses when hidden and updates on restore; participant count and current-room highlight",
+    "Screen quick action calls existing imperative controller synchronously, retaining user activation for system picker; preview plus separate Start remains mandatory; stop reuses existing cleanup",
+    "Room/profile/screen/participant styles aligned with PeeTwoPee palette, compact responsive actions and reduced-motion preference"
+  ],
+  "fixes": [
+    "Muted/deaf flags reach the panel immediately while preserving session-bound backend controls",
+    "Late voice poll/join snapshots discarded after session generation changes; leave/cancel clears busy and screen status so disconnected UI is not resurrected",
+    "Friendly labels fetched from locally verified stored state, independent of the currently browsed workspace; no protocol/authorization change"
+  ],
+  "tests": {
+    "frontend": "35 tests passed, including actual React server-rendered panel, tooltip/pressed state checks, callback dispatch, deaf microphone indication, camera disabled/no handler/no capture, durations and status semantics; TypeScript/Vite passed",
+    "go": "go test ./... and go vet ./... passed",
+    "voice": "Real EasyTier and two production cores: join/leave, mute/deaf, bridge rebind, concurrent text, reconnection and revoked-member shutdown passed; destination labels nonempty from verified local state asserted",
+    "screen": "Generated VP8 decoded after encrypted EasyTier transport; concurrent Opus/chat, preview isolation, unauthorized participant rejection, reconnect, visibility expiry and cleanup passed",
+    "communities": "Three independent production backend processes, integrated EasyTier, invites/admissions/roles/text/sync/journal/restart/deduplication/revocation and direct chat passed",
+    "timingsSeconds": {
+      "TestRealScreenAndVoiceOverIntegratedTransport": "32.25",
+      "TestRealTwoPersonVoiceProductionService": "42.43"
+    },
+    "build": "Windows desktop/private setup0.8.2.0 and Windows/Linux CLI compiled; exact payload/helper/notices/full corresponding source/PE import checks passed. Installation not performed.",
+    "audit": "Version/actionlint/diff check and source/secret audit recorded with delivery; govulncheck0 reachable/0 imported-package/8 module-only; Rust gate unchanged"
+  },
+  "pending": [
+    "Interactive native WebView2 panel placement/hover/keyboard at actual resolutions",
+    "Physical microphone and audible playback; real system screen/window picker via quick button",
+    "Physical minimize-to-tray/restore and whole-renderer resource lifecycle",
+    "Two physical computers in different networks/CGNAT",
+    "Full installer installation/upgrade; Linux desktop/portal and Linux race unavailable on this Windows host"
+  ],
+  "limitations": [
+    "Camera intentionally disabled: no camera capture/transmission protocol implemented",
+    "Voz conectada refers to a joined local room when alone; remote media with multiple participants reports connecting/reconnecting instead of falsely claiming working audio",
+    "Duration is current renderer session duration, not a persisted call audit record",
+    "Synthetic backend/SSR tests do not establish physical/native visual or acoustic behavior",
+    "Existing finite owner-signed offline authorization and TCP/VP8 constraints remain",
+    "Unresolved Rust/public release gate and legacy DHT quarantine unchanged"
+  ],
+  "privacy": "No new capture permissions, network/firewall/VPN/routes/DNS changes, audio/video recording, public publication or profile migration",
+  "permissionBuild": {
+    "module": "github.com/wailsapp/wails/v2@v2.17.0",
+    "originalSHA256": "9598c7f21779e2332db788a9e09f3b4856d563ab5fc2c93bf7035743b9d7befa",
+    "policy": "WebView2 Default (user prompt), no automatic grants"
+  },
+  "appSHA256": "f6e6009ecae34308f9e76b5f15dcf7ed1df0a65e19cd7bde845c2824654318f9",
+  "setupSHA256": "04996293a78f167ea391de0a8e2014ce5a842028bda25e5f3dfd36f2077870a2"
+}

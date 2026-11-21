@@ -1,0 +1,51 @@
+{
+  "version": "0.6.2",
+  "scope": "automated local tests, Windows, isolated profiles; not physical computers in different houses",
+  "tests": {
+    "frontend": "15 passed; TypeScript/Vite production build",
+    "go": "go test ./... and go vet ./... passed",
+    "discovery": "signed obsolete-port compact invite passed; valid old native-scope invite followed known authenticated integrated owner route",
+    "routes": "certified libp2p peer record supplied fresh endpoint; stale permanent cache cleared; loopback/native/integrated policy tests passed; sealed capability survived reopen",
+    "communities": "3 independent production backend processes over real EasyTier; membership, roles, text, restart, deduplication, revocation, preserved direct chat passed",
+    "legacy": "three local nodes, offline text replication and later owner confirmation without duplicate IDs passed; durable outbox/history/pagination preserved",
+    "ownerOutage": "3 local production cores with real EasyTier; >65s owner offline; existing authorized bidirectional voice/text, forced media disconnect/reconnect, same owner identity restarted with native port setting changed; old multiuse invitation still joined a new participant",
+    "voice": "3 independent backend processes with all voice sources; exit/rejoin passed. Production 2-person regression passed mute/deaf, local bridge repair, text, reconnect and revoked member shutdown",
+    "opus": "two independent backend processes, 250 frames per direction, decoded generated PCM RMS 0.08759495; no physical microphone test",
+    "offlineSecurity": "owner signature and expiry required; offline lease up to 900s, online presence 45s; replay protection isolated per peer across complete signed window",
+    "installer": "payload hashes/PE dependencies/version metadata verified; helper remains exact audited SHA, licenses and complete corresponding sources bundled",
+    "compilation": "Windows desktop and CLI; Linux CLI and tray compiled, Linux desktop not run"
+  },
+  "pending": [
+    "two or more physical PCs in different networks/CGNAT",
+    "actual WAN IP change and authorized relay outage/failover",
+    "physical microphones and audible playback in different houses",
+    "full installer upgrade/installation and native tray/UI lifecycle",
+    "Linux desktop runtime and Linux race checks unavailable on this Windows host"
+  ],
+  "limitations": [
+    "existing voice sessions continue only during valid owner-signed offline window up to 15 minutes; new call sessions and community admissions/admin require reachable owner",
+    "revocations unknown to completely isolated replicas can propagate late; no claim of instantaneous offline revocation",
+    "native addresses alone cannot discover a private EasyTier capability; import one signed integrated owner contact invitation if no authenticated route is known",
+    "all PCs must upgrade to 0.6.2; stable integrated userspace service port must be free",
+    "unresolved Rust advisories keep public release blocked; legacy DHT remains quarantined"
+  ],
+  "security": {
+    "firewallChanged": false,
+    "vpnDriversInstalled": false,
+    "npcapRedistributed": false,
+    "publicReleasePublished": false,
+    "helperSHA256": "d25540cadfb76697c53a44a9d981fc36e5e56eed09dffef0f4a86c6ff4674a32",
+    "goVulncheck": "0 reachable and 0 imported-package vulnerabilities; 8 module-only; see local scan log"
+  },
+  "evidenceSHA256": {
+    "community-all-final.log": "1687ac96dbb3da72c27656a4434f5e5406d98a0bd3327416dd1a360e704d417b",
+    "community-vet-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "community-production-final.log": "aac5835b04a49c9bdbba1e543516a77a6243192ba07f0ab5186adc9471b181fe",
+    "community-legacy-offline.log": "d74c90f389def22e814068cd6a6281b6cffccca972fc2f8cfde143101dca7e49",
+    "community-stale-invite.log": "c9d00c60dcd2309d67538f6b68bbb2eb3b8fbb652ed9bb1204f9942cc1fbc435",
+    "community-smoke-final.log": "ad074c4274817cf041f126c34358087eec73444e525b9fe71d6399874bdf5b9b",
+    "community-opus-final.log": "791147509fbf73e5bb76ced6f5f9fe2ec2e6cb9ae8f9cf12470e279d561a9c24",
+    "community-installer-smoke.log": "870b8d2ac0033e0b52bd9b25916f26a93d4930f53cdc35d84c842d2b3c502716",
+    "community-frontend-test.log": "b555ff16b66fc6028df1e41d0adb165eba03e5216061d847daa8bf29f472045c"
+  }
+}

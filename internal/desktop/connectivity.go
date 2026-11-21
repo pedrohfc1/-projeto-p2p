@@ -83,8 +83,12 @@ func (c *Core) synchronize(s localdb.Settings) {
 	c.networkErr = ""
 }
 func (c *Core) stopNode() {
+	c.media.Store(nil)
 	if c.node != nil {
 		c.node.SetVoiceHandler(nil)
+		c.node.SetVoiceMediaHandler(nil)
+		c.node.SetScreenMediaHandler(nil)
+		c.node.SetScreenAudioHandler(nil)
 	}
 	if c.voice != nil {
 		c.voice.Close()
@@ -231,8 +235,15 @@ func (c *Core) newTest(id string) ConnectionTest {
 	return r
 }
 func (c *Core) probeLocked(ctx context.Context, info peer.AddrInfo, r *ConnectionTest) {
+	info = c.node.ResolvePeerEndpoints(info)
 	for _, a := range info.Addrs {
-		ip, n, _ := endpoint.TCP4(a)
+		ip, n, ok := endpoint.TCP4(a)
+		if !ok {
+			ip, _ = a.ValueForProtocol(ma.P_IP6)
+			if value, e := a.ValueForProtocol(ma.P_TCP); e == nil {
+				n, _ = strconv.Atoi(value)
+			}
+		}
 		r.Targets = append(r.Targets, ConnectionTarget{Address: a.String() + "/p2p/" + info.ID.String(), IP: ip, Port: n})
 	}
 	if len(info.Addrs) == 0 {

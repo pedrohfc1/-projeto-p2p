@@ -13,5 +13,5 @@ for f,marker in [('main.go',f'fmt.Println("{v}")'),('internal/installwin/install
 for f in ['scripts/package-windows.ps1','tests/installer-smoke.ps1']:
  assert f'Setup-v{v}.exe' in (p/f).read_text(encoding='utf-8'),f
 if len(sys.argv)>1:assert sys.argv[1]=='v'+v,'Tag/version mismatch'
-assert f'ProjetoP2P-v{v}-licencas-windows.zip' in (p/'scripts/package-windows.ps1').read_text(encoding='utf-8')
+assert f'PeeTwoPee-v{v}-licencas-windows.zip' in (p/'scripts/package-windows.ps1').read_text(encoding='utf-8')
 print('PASS: version '+v+' matches app, frontend, installer and optional tag')

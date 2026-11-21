@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -16,6 +17,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	"projetop2p/internal/adapters"
 	"projetop2p/internal/communities"
+	"projetop2p/internal/community"
 	"projetop2p/internal/endpoint"
 	"projetop2p/internal/identity"
 	"projetop2p/internal/invite"
@@ -23,13 +25,20 @@ import (
 	"projetop2p/internal/messaging"
 	"projetop2p/internal/network"
 	"projetop2p/internal/overlay"
+	"projetop2p/internal/roomprobe"
 	"projetop2p/internal/telemetry"
 	"projetop2p/internal/transportaddr"
 	"projetop2p/internal/voice"
 )
 
 type Core struct {
-	voice *voice.Service
+	roomProbe      roomProbeState
+	voiceDiag      voiceDiagnosticCache
+	captureFactory voice.CaptureFactory
+	media          atomic.Pointer[voice.Service]
+	activity       activityState
+	adapterChecked time.Time
+	voice          *voice.Service
 	legacyLabState
 	integrated *overlay.Manager
 	mu         sync.Mutex
@@ -55,18 +64,20 @@ type ContactView struct {
 	Path string `json:"path"`
 }
 type State struct {
-	Settings     localdb.Settings      `json:"settings"`
-	Network      network.Status        `json:"network"`
-	Contacts     []ContactView         `json:"contacts"`
-	Messages     []localdb.Message     `json:"messages"`
-	Notice       string                `json:"notice"`
-	Event        string                `json:"event"`
-	Connectivity adapters.Selection    `json:"connectivity"`
-	NetworkError string                `json:"networkError"`
-	Diagnostic   *ConnectionTest       `json:"diagnostic"`
-	Communities  []communities.Summary `json:"communities"`
-	Integrated   overlay.State         `json:"integrated"`
-	Metrics      telemetry.Sample      `json:"metrics"`
+	PeerTraffic  map[string]network.PeerTraffic `json:"peerTraffic"`
+	Unread       map[string]int                 `json:"unread"`
+	Settings     localdb.Settings               `json:"settings"`
+	Network      network.Status                 `json:"network"`
+	Contacts     []ContactView                  `json:"contacts"`
+	Messages     []localdb.Message              `json:"messages"`
+	Notice       string                         `json:"notice"`
+	Event        string                         `json:"event"`
+	Connectivity adapters.Selection             `json:"connectivity"`
+	NetworkError string                         `json:"networkError"`
+	Diagnostic   *ConnectionTest                `json:"diagnostic"`
+	Communities  []communities.Summary          `json:"communities"`
+	Integrated   overlay.State                  `json:"integrated"`
+	Metrics      telemetry.Sample               `json:"metrics"`
 }
 
 func DefaultDir() (string, error) {
@@ -92,7 +103,7 @@ func OpenWithProvider(parent context.Context, dir string, provider adapters.Prov
 		return nil, e
 	}
 	ctx, cancel := context.WithCancel(parent)
-	c := &Core{db: db, ctx: ctx, cancel: cancel, dir: dir, enumerate: provider, key: key}
+	c := &Core{activity: newActivityState(), db: db, ctx: ctx, cancel: cancel, dir: dir, enumerate: provider, key: key}
 	settings, e := db.Settings()
 	if e != nil {
 		cancel()
@@ -100,9 +111,11 @@ func OpenWithProvider(parent context.Context, dir string, provider adapters.Prov
 		return nil, e
 	}
 	c.groups = communities.New(ctx, db, key)
+	_ = c.db.PollInbox(c.selfID(), nil)
 	c.synchronize(settings)
-	c.wg.Add(1)
+	c.wg.Add(2)
 	go c.watch()
+	go c.activityWatch()
 	return c, nil
 }
 func (c *Core) start(s localdb.Settings) error {
@@ -126,10 +139,13 @@ func (c *Core) start(s localdb.Settings) error {
 		}
 		c.integrated = m
 		id, _ := peer.IDFromPrivateKey(c.key)
+		servicePort := transportaddr.ServicePort(id.String())
+		cfg.Listen = []string{fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", servicePort)}
 		cfg.IntegratedDialer = m
-		cfg.IntegratedAddresses = []string{fmt.Sprintf("/ip6/%s/tcp/%d", transportaddr.LogicalIP(id.String()), port(s))}
+		cfg.IntegratedAddresses = []string{fmt.Sprintf("/ip6/%s/tcp/%d", transportaddr.LogicalIP(id.String()), servicePort)}
 		cfg.InvitationRoute = m.Token
 		cfg.RegisterRoute = m.Register
+		cfg.HasRoute = m.HasRoute
 		cfg.OverlayPath = m.Path
 	}
 	scope := ""
@@ -155,7 +171,7 @@ func (c *Core) start(s localdb.Settings) error {
 		return e
 	}
 	if c.integrated != nil {
-		if e = c.integrated.Start(c.ctx, port(s), v.Port()); e != nil {
+		if e = c.integrated.Start(c.ctx, transportaddr.ServicePort(n.SelfID()), v.Port()); e != nil {
 			v.Close()
 			c.integrated.Close()
 			c.integrated = nil
@@ -165,8 +181,20 @@ func (c *Core) start(s localdb.Settings) error {
 	}
 	c.node = n
 	c.voice = v
+	c.media.Store(v)
 	n.SetVoiceHandler(v.Handle)
-	n.SetCommunityHandler(c.groups.Handle)
+	n.SetVoiceMediaHandler(v.AcceptMedia)
+	roomprobe.SetHandler(n.Host, func(id peer.ID) (func() bool, bool) {
+		return c.acceptRoomProbe(v, id)
+	})
+	n.SetScreenMediaHandler(v.AcceptScreen)
+	n.SetScreenAudioHandler(v.AcceptScreenAudio)
+	n.SetCommunityHandler(func(ctx context.Context, remote string, req community.Request) community.Response {
+		if strings.HasPrefix(req.Method, "activity.") {
+			return c.activityHandle(remote, req)
+		}
+		return c.groups.Handle(ctx, remote, req)
+	})
 	c.groups.Attach(n, mode(s))
 	contacts, e := c.db.Contacts()
 	if e != nil {
@@ -252,6 +280,7 @@ func (c *Core) State(selected string) (State, error) {
 	if e != nil {
 		return s, e
 	}
+	s.Unread, _ = c.db.Unread()
 	s.Diagnostic = c.lastTest
 	s.Communities, e = c.groups.List()
 	if e != nil {
@@ -280,6 +309,7 @@ func (c *Core) State(selected string) (State, error) {
 		traffic = c.node.Traffic()
 	}
 	s.Metrics = c.metrics.Read(traffic.UploadBytes, traffic.DownloadBytes)
+	s.PeerTraffic = traffic.Peers
 	s.Metrics.Connections = traffic.Connections
 	s.Metrics.Streams = traffic.Streams
 	s.Metrics.LastConnectMs = traffic.LastConnectMs
@@ -462,6 +492,9 @@ func (c *Core) SaveSettings(s localdb.Settings) error {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.saveSettingsLocked(s)
+}
+func (c *Core) saveSettingsLocked(s localdb.Settings) error {
 	s.Mode = mode(s)
 	if s.Mode != "auto" {
 		s.Port = port(s)
@@ -477,8 +510,10 @@ func (c *Core) SaveSettings(s localdb.Settings) error {
 }
 func (c *Core) Send(id, text string) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.node == nil {
+	node := c.node
+	integrated := c.integrated != nil
+	c.mu.Unlock()
+	if node == nil {
 		return errors.New("rede indisponível")
 	}
 	p, e := peer.Decode(id)
@@ -498,7 +533,7 @@ func (c *Core) Send(id, text string) error {
 	if !known {
 		return errors.New("adicione o contato por convite antes de enviar")
 	}
-	m, e := c.node.Compose(p, text)
+	m, e := messaging.New(c.key, p, text)
 	if e != nil {
 		return e
 	}
@@ -507,12 +542,12 @@ func (c *Core) Send(id, text string) error {
 		return e
 	}
 	timeout := 12 * time.Second
-	if c.integrated != nil {
+	if integrated {
 		timeout = 45 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(c.ctx, timeout)
 	defer cancel()
-	e = c.node.Deliver(ctx, m)
+	e = node.Deliver(ctx, m)
 	record.State = "confirmada"
 	if e != nil {
 		record.State = "sem confirmação"
@@ -535,4 +570,21 @@ func (c *Core) config(s localdb.Settings) network.Config {
 		cfg = network.Config{DataDir: c.dir, Listen: []string{fmt.Sprintf("/ip4/%s/tcp/%d", c.selection.IP, port(s))}, LocalOnly: true, ScopedIP: c.selection.IP, ScopedMode: mode(s)}
 	}
 	return cfg
+}
+
+// SelectNetwork persists only the user's transport choice, preserving unrelated profile data.
+// Persistence precedes startup: a failed selected transport never silently falls back.
+func (c *Core) SelectNetwork(selected, interfaceID string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	s, e := c.db.Settings()
+	if e != nil {
+		return e
+	}
+	s.Mode = selected
+	s.InterfaceID = interfaceID
+	if e = validateSettings(s); e != nil {
+		return e
+	}
+	return c.saveSettingsLocked(s)
 }

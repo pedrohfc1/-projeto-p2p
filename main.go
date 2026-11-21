@@ -6,9 +6,18 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
+	"projetop2p/internal/diagnostics"
+	"projetop2p/internal/installtxn"
 	"projetop2p/internal/invite"
+	"projetop2p/internal/lifecycle"
+	"projetop2p/internal/tray"
+	goruntime "runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/pion/webrtc/v4"
 	"github.com/wailsapp/wails/v2"
@@ -26,11 +35,21 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+//go:embed assets/brand/*.ico
+var trayIcons embed.FS
+
+var permissionPolicy = "unverified"
+
 type App struct {
-	ctx   context.Context
-	core  *desktop.Core
-	err   error
-	ready chan struct{}
+	screenVisible    atomic.Bool
+	tray             *tray.Tray
+	quitting         atomic.Bool
+	backgroundCancel context.CancelFunc
+	backgroundWG     sync.WaitGroup
+	ctx              context.Context
+	core             *desktop.Core
+	err              error
+	ready            chan struct{}
 }
 
 func (a *App) initialized() error { <-a.ready; return a.err }
@@ -82,7 +101,7 @@ func (a *App) LegacyInvite(raw string) (string, error) {
 		return "", e
 	}
 	raw = strings.TrimSpace(raw)
-	if strings.HasPrefix(raw, community.InvitePrefix) {
+	if strings.HasPrefix(raw, community.InvitePrefix) || strings.HasPrefix(raw, community.SmallInvitePrefix) {
 		return community.LegacyInvite(raw)
 	}
 	return invite.Legacy(raw)
@@ -142,9 +161,18 @@ func (a *App) DiscardCommunityPending(id, op string) error {
 func main() {
 	dir := flag.String("data", "", "Perfil separado para testes; padrão no diretório do usuário")
 	version := flag.Bool("version", false, "Informar versão sem iniciar a janela ou o nó")
+	policy := flag.Bool("permission-policy", false, "Informar politica de permissoes do build")
 	flag.Parse()
+	if *policy {
+		fmt.Println(permissionPolicy)
+		return
+	}
 	if *version {
-		fmt.Println("0.6.0")
+		fmt.Println("0.10.7")
+		return
+	}
+	if !bindingGeneration && goruntime.GOOS == "windows" && permissionPolicy != "prompt-v1" {
+		fmt.Println("Build de desktop sem politica de consentimento verificada. Use scripts/build-desktop.ps1.")
 		return
 	}
 	dataDir := *dir
@@ -158,19 +186,93 @@ func main() {
 		fmt.Println(resolveErr)
 		return
 	}
+	var guard *lifecycle.Guard
+	if !bindingGeneration {
+		executable, e := os.Executable()
+		if e != nil {
+			lifecycle.ShowError(e.Error())
+			return
+		}
+		guard, e = lifecycle.Acquire(dataDir, filepath.Dir(executable))
+		if e != nil {
+			lifecycle.ShowError(e.Error())
+			return
+		}
+		defer guard.Close()
+		verifiedBinary, e := installtxn.VerifyExecutable(executable, "0.10.7")
+		if e != nil {
+			lifecycle.ShowError(e.Error())
+			return
+		}
+		if e = localdb.CheckProfileIdle(dataDir); e != nil {
+			lifecycle.ShowError(e.Error())
+			return
+		}
+		revision, e := lifecycle.AssetRevision(assets)
+		if e != nil {
+			lifecycle.ShowError(e.Error())
+			return
+		}
+		revision = installtxn.Hash([]byte(revision + "|" + verifiedBinary))
+		if e = lifecycle.RefreshCache(dataDir, revision); e != nil {
+			lifecycle.ShowError(e.Error())
+			return
+		}
+	}
+	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
+	defer shutdownCancel()
+	if goruntime.GOOS == "windows" {
+		_ = os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS")+" --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows")
+	}
+	diagnostics.Install()
 	app := &App{ready: make(chan struct{})}
-	err := wails.Run(&options.App{Title: "Projeto P2P", Width: 1180, Height: 790, MinWidth: 760, MinHeight: 600, BackgroundColour: options.NewRGB(15, 18, 29), DragAndDrop: &options.DragAndDrop{DisableWebViewDrop: true, EnableFileDrop: false}, AssetServer: &assetserver.Options{Assets: assets, Middleware: func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Permissions-Policy", "microphone=(self), camera=(), display-capture=(), geolocation=()")
-			next.ServeHTTP(w, r)
-		})
-	}}, Windows: &winoptions.Options{WebviewUserDataPath: filepath.Join(dataDir, "cache", "webview2")}, OnStartup: func(ctx context.Context) {
+	err := wails.Run(&options.App{Title: "PeeTwoPee", Width: 1180, Height: 790, MinWidth: 760, MinHeight: 600, BackgroundColour: options.NewRGB(15, 18, 29), DragAndDrop: &options.DragAndDrop{DisableWebViewDrop: true, EnableFileDrop: false}, AssetServer: &assetserver.Options{Assets: assets, Middleware: mediaPermissions}, Windows: &winoptions.Options{WebviewUserDataPath: filepath.Join(dataDir, "cache", "webview2")}, OnStartup: func(ctx context.Context) {
 		app.ctx = ctx
+		if guard != nil {
+			go func() {
+				select {
+				case <-guard.StopRequests():
+					app.quitting.Store(true)
+					wruntime.Quit(ctx)
+				case <-shutdownCtx.Done():
+				}
+			}()
+		}
+		app.screenVisible.Store(true)
 		var e error
 		app.core, e = desktop.Open(ctx, dataDir)
 		app.err = e
+		if e == nil {
+			app.startTray(dataDir)
+			app.startDiagnostics(shutdownCtx)
+		}
 		close(app.ready)
+	}, OnBeforeClose: func(ctx context.Context) bool {
+		if app.initialized() != nil {
+			return false
+		}
+		p, e := app.core.AudioPreferences()
+		if e == nil && tray.ShouldHide(p.CloseToTray, app.tray != nil, app.quitting.Load()) {
+			wruntime.WindowExecJS(ctx, `window.dispatchEvent(new CustomEvent("peetwopee:visibility",{detail:{hidden:true}}))`)
+			app.screenVisible.Store(false)
+			app.core.SetChatForeground(false)
+			if app.tray == nil || !app.tray.Available() {
+				app.core.ScreenStop()
+			}
+			wruntime.WindowHide(ctx)
+			return true
+		}
+		return false
 	}, OnShutdown: func(context.Context) {
+		shutdownCancel()
+		_ = app.initialized()
+		if app.backgroundCancel != nil {
+			app.backgroundCancel()
+		}
+		app.backgroundWG.Wait()
+		if app.tray != nil {
+			app.tray.Close()
+		}
 		_ = app.initialized()
 		if app.core != nil {
 			_ = app.core.Close()
@@ -220,4 +322,194 @@ func (a *App) VoiceControls(muted, deaf bool) error {
 	}
 	a.core.VoiceControls(muted, deaf)
 	return nil
+}
+
+func (a *App) VoiceRebind(offer webrtc.SessionDescription) (webrtc.SessionDescription, error) {
+	if e := a.initialized(); e != nil {
+		return webrtc.SessionDescription{}, e
+	}
+	return a.core.VoiceRebind(offer)
+}
+
+func (a *App) AudioPreferences() (localdb.Preferences, error) {
+	if e := a.initialized(); e != nil {
+		return localdb.Preferences{}, e
+	}
+	return a.core.AudioPreferences()
+}
+func (a *App) SaveAudioPreferences(p localdb.Preferences) error {
+	if e := a.initialized(); e != nil {
+		return e
+	}
+	return a.core.SaveAudioPreferences(p)
+}
+
+func (a *App) startTray(dir string) {
+	cache := filepath.Join(dir, "cache", "brand")
+	if os.MkdirAll(cache, 0700) != nil {
+		return
+	}
+	for _, name := range []string{"tray.ico", "tray-muted.ico"} {
+		b, e := trayIcons.ReadFile("assets/brand/" + name)
+		if e != nil {
+			return
+		}
+		if os.WriteFile(filepath.Join(cache, name), b, 0600) != nil {
+			return
+		}
+	}
+	t, e := tray.Start(filepath.Join(cache, "tray.ico"), filepath.Join(cache, "tray-muted.ico"), tray.Callbacks{Open: func() {
+		a.screenVisible.Store(true)
+		a.core.SetChatForeground(true)
+		wruntime.WindowShow(a.ctx)
+		wruntime.WindowUnminimise(a.ctx)
+		wruntime.WindowExecJS(a.ctx, `window.dispatchEvent(new CustomEvent("peetwopee:visibility",{detail:{hidden:false}}))`)
+	}, Mute: func() {
+		v := a.core.VoiceState()
+		if v.Joined {
+			muted := !(v.Muted || v.Deaf)
+			deaf := v.Deaf
+			if !muted {
+				deaf = false
+			}
+			a.core.VoiceControls(muted, deaf)
+		}
+	}, StopScreen: func() {
+		a.core.ScreenStop()
+		wruntime.WindowExecJS(a.ctx, `window.dispatchEvent(new Event("peetwopee:screen-stop"))`)
+	}, Leave: func() { a.core.VoiceLeave() }, Quit: func() { a.quitting.Store(true); wruntime.Quit(a.ctx) }})
+	if e != nil {
+		return
+	}
+	a.tray = t
+	ctx, cancel := context.WithCancel(a.ctx)
+	a.backgroundCancel = cancel
+	a.backgroundWG.Add(1)
+	go func() {
+		defer a.backgroundWG.Done()
+		tick := time.NewTicker(time.Second)
+		defer tick.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+				if !a.screenWindowVisible() {
+					a.core.SetChatForeground(false)
+				}
+				v := a.core.VoiceState()
+				screen := a.core.ScreenState()
+				t.Update(tray.State{Joined: v.Joined, Muted: v.Muted || v.Deaf, Sharing: screen.Publishing})
+				// Native watchdog is independent of renderer timers while hidden.
+				if screen.Active {
+					if t.Available() {
+						a.core.ScreenHeartbeat()
+					} else {
+						a.core.ScreenStop()
+						wruntime.WindowExecJS(a.ctx, `window.dispatchEvent(new Event("peetwopee:screen-stop"))`)
+					}
+				}
+				if notices, e := a.core.DrainNotices(); e == nil {
+					for _, notice := range notices {
+						t.Notify("PeeTwoPee", notice.Body)
+					}
+				}
+			}
+		}
+	}()
+}
+func (a *App) QuitApp() error {
+	if e := a.initialized(); e != nil {
+		return e
+	}
+	a.quitting.Store(true)
+	wruntime.Quit(a.ctx)
+	return nil
+}
+
+// Capability only: never starts capture or grants a system permission.
+func (a *App) ScreenBackgroundAllowed() bool {
+	return a.tray != nil && a.tray.Available()
+}
+
+func (a *App) ScreenConnect(offer webrtc.SessionDescription) (webrtc.SessionDescription, error) {
+	if e := a.initialized(); e != nil {
+		return webrtc.SessionDescription{}, e
+	}
+	if !a.screenWindowVisible() {
+		return webrtc.SessionDescription{}, fmt.Errorf("screen window is not visible")
+	}
+	return a.core.ScreenConnect(offer)
+}
+func (a *App) ScreenPublish(publish bool, bitrate, maxViewers int) error {
+	if e := a.initialized(); e != nil {
+		return e
+	}
+	if publish && !a.screenWindowVisible() {
+		a.core.ScreenStop()
+		return fmt.Errorf("screen sharing stopped while window is hidden or minimized")
+	}
+	return a.core.ScreenPublish(publish, bitrate, maxViewers)
+}
+func (a *App) ScreenWatch(id string) error {
+	if e := a.initialized(); e != nil {
+		return e
+	}
+	if id != "" && !a.screenWindowVisible() {
+		return fmt.Errorf("screen viewing stopped while window is hidden or minimized")
+	}
+	return a.core.ScreenWatch(id)
+}
+func (a *App) ScreenStop() error {
+	if e := a.initialized(); e != nil {
+		return e
+	}
+	a.core.ScreenStop()
+	return nil
+}
+func (a *App) ScreenHeartbeat() error {
+	if e := a.initialized(); e != nil {
+		return e
+	}
+	if !a.screenWindowVisible() && (a.tray == nil || !a.tray.Available()) {
+		a.core.ScreenStop()
+		wruntime.WindowExecJS(a.ctx, `window.dispatchEvent(new Event("peetwopee:screen-stop"))`)
+		return nil
+	}
+	a.core.ScreenHeartbeat()
+	return nil
+}
+func (a *App) ScreenState() (voice.ScreenView, error) {
+	if e := a.initialized(); e != nil {
+		return voice.ScreenView{}, e
+	}
+	return a.core.ScreenState(), nil
+}
+
+func screenHeartbeatAllowed(visible, minimized bool) bool { return visible && !minimized }
+func (a *App) screenWindowVisible() bool {
+	return a.ctx != nil && screenHeartbeatAllowed(a.screenVisible.Load(), wruntime.WindowIsMinimised(a.ctx))
+}
+
+func (a *App) VoiceControlsForSession(session string, muted, deaf bool) error {
+	if e := a.initialized(); e != nil {
+		return e
+	}
+	return a.core.VoiceControlsForSession(session, muted, deaf)
+}
+
+// Permit an explicit local media request; the runtime still requests user consent.
+func mediaPermissions(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store, max-age=0")
+		w.Header().Set("Permissions-Policy", "microphone=(self), camera=(), display-capture=(self), geolocation=()")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (a *App) SelectNetwork(mode, interfaceID string) error {
+	if e := a.initialized(); e != nil {
+		return e
+	}
+	return a.core.SelectNetwork(mode, interfaceID)
 }

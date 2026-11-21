@@ -2,6 +2,7 @@ package community
 
 import (
 	"bytes"
+	"compress/flate"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -9,14 +10,17 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
+	"io"
 	"projetop2p/internal/compactinvite"
 	"projetop2p/internal/endpoint"
 	"projetop2p/internal/transportaddr"
+	"strconv"
 	"strings"
 	"time"
 )
 
 const InvitePrefix = "projetop2p-community:"
+const SmallInvitePrefix = "peetwopee://join/"
 const CompactInvitePrefix = "projetop2p-community:c2:"
 
 type InviteOptions struct {
@@ -100,6 +104,13 @@ func newInvite(key crypto.PrivKey, s State, scope string, addresses []string, op
 	return raw, e
 }
 func ParseInvite(raw string, now time.Time) (Invite, error) {
+	if strings.HasPrefix(raw, SmallInvitePrefix) {
+		expanded, err := expandSmallInvite(raw)
+		if err != nil {
+			return Invite{}, err
+		}
+		return ParseInvite(expanded, now)
+	}
 	if strings.HasPrefix(raw, CompactInvitePrefix) {
 		i, e := decodeCompactInvite(raw)
 		if e != nil {
@@ -178,7 +189,7 @@ func LegacyInvite(raw string) (string, error) {
 	b, _ := json.Marshal(i)
 	return InvitePrefix + base64.RawURLEncoding.EncodeToString(b), nil
 }
-func encodeCompactInvite(i Invite) (string, error) {
+func encodeCompactV2(i Invite) (string, error) {
 	f := compactinvite.Fields{}
 	key, e := compactinvite.RawKey(i.OwnerKey)
 	if e != nil {
@@ -252,4 +263,113 @@ func decodeCompactInvite(raw string) (Invite, error) {
 	i.Nonce = hex.EncodeToString(f.One(11))
 	i.Addresses, e = compactinvite.Restore(f[5], i.Owner)
 	return i, e
+}
+
+// Small invitations carry the complete signed c2 payload, never an opaque server code.
+// Compression only changes the envelope: domain, signature and authorization stay identical.
+func encodeCompactInvite(i Invite) (string, error) {
+	old, err := encodeCompactV2(i)
+	if err != nil {
+		return "", err
+	}
+	fields, err := compactinvite.Decode(old, CompactInvitePrefix, 16000)
+	if err != nil {
+		return "", err
+	}
+	scopes := []string{"auto", "integrated", "radmin", "hamachi", "interface"}
+	for n, scope := range scopes {
+		if i.Scope == scope {
+			fields[4] = [][]byte{{byte(n)}}
+		}
+	}
+	if i.Policy != "" {
+		policies := map[string]byte{"single": 1, "multi": 2, "permanent": 3}
+		fields[14] = [][]byte{{policies[i.Policy], byte(i.MaxUses)}}
+	}
+	if i.Scope == "integrated" && len(i.Addresses) == 1 && i.Addresses[0] == "/ip6/"+transportaddr.LogicalIP(i.Owner)+"/tcp/"+strconv.Itoa(transportaddr.ServicePort(i.Owner))+"/p2p/"+i.Owner {
+		delete(fields, 5)
+		fields[6] = [][]byte{{1}}
+	}
+	raw, err := base64.RawURLEncoding.Strict().DecodeString(compactinvite.Encode("", fields))
+	if err != nil {
+		return "", err
+	}
+	var compressed bytes.Buffer
+	writer, _ := flate.NewWriter(&compressed, flate.BestCompression)
+	if _, err = writer.Write(raw); err != nil {
+		return "", err
+	}
+	if err = writer.Close(); err != nil {
+		return "", err
+	}
+	envelope := append([]byte{2, 0}, raw...)
+	if compressed.Len() < len(raw) {
+		envelope = append([]byte{2, 1}, compressed.Bytes()...)
+	}
+	return SmallInvitePrefix + base64.RawURLEncoding.EncodeToString(envelope), nil
+}
+func expandSmallInvite(raw string) (string, error) {
+	if len(raw) > 16000 {
+		return "", errors.New("invitation too large")
+	}
+	b, err := base64.RawURLEncoding.Strict().DecodeString(strings.TrimPrefix(raw, SmallInvitePrefix))
+	if err != nil || len(b) < 3 || (b[0] != 1 && b[0] != 2) {
+		return "", errors.New("invalid self-contained invitation version")
+	}
+	var payload []byte
+	switch b[1] {
+	case 0:
+		payload = b[2:]
+	case 1:
+		source := bytes.NewReader(b[2:])
+		reader := flate.NewReader(source)
+		payload, err = io.ReadAll(io.LimitReader(reader, 12001))
+		closeErr := reader.Close()
+		if err != nil || closeErr != nil || source.Len() != 0 {
+			return "", errors.New("invalid compressed invitation")
+		}
+	default:
+		return "", errors.New("unsupported invitation encoding")
+	}
+	if len(payload) > 12000 {
+		return "", errors.New("expanded invitation too large")
+	}
+	if b[0] == 2 {
+		fields, e := compactinvite.Decode(base64.RawURLEncoding.EncodeToString(payload), "", 16000)
+		if e != nil {
+			return "", e
+		}
+		scopes := []string{"auto", "integrated", "radmin", "hamachi", "interface"}
+		scope := fields.One(4)
+		if len(scope) != 1 || int(scope[0]) >= len(scopes) {
+			return "", errors.New("invalid compact scope")
+		}
+		fields[4] = [][]byte{[]byte(scopes[scope[0]])}
+		if len(fields[14]) > 0 {
+			policy := fields.One(14)
+			if len(policy) != 2 || policy[0] < 1 || policy[0] > 3 {
+				return "", errors.New("invalid compact policy")
+			}
+			names := []string{"", "single", "multi", "permanent"}
+			raw, _ := json.Marshal(InviteOptions{Kind: names[policy[0]], MaxUses: uint32(policy[1])})
+			fields[14] = [][]byte{raw}
+		}
+		if len(fields[6]) > 0 {
+			if !bytes.Equal(fields.One(6), []byte{1}) || len(fields[5]) != 0 || string(fields.One(4)) != "integrated" {
+				return "", errors.New("invalid derived endpoint")
+			}
+			_, id, e := compactinvite.Key(fields.One(2))
+			if e != nil {
+				return "", e
+			}
+			addresses, e := compactinvite.Addresses([]string{"/ip6/" + transportaddr.LogicalIP(id) + "/tcp/" + strconv.Itoa(transportaddr.ServicePort(id)) + "/p2p/" + id}, id)
+			if e != nil {
+				return "", e
+			}
+			fields[5] = addresses
+			delete(fields, 6)
+		}
+		return compactinvite.Encode(CompactInvitePrefix, fields), nil
+	}
+	return CompactInvitePrefix + base64.RawURLEncoding.EncodeToString(payload), nil
 }

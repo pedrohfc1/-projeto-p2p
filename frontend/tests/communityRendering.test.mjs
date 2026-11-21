@@ -9,7 +9,7 @@ import {pathToFileURL} from 'node:url';
 test('conteúdo remoto é texto escapado e hub permite criar/entrar sem captura de mídia',async()=>{
  const root=resolve('dist/.ssr-tests');await mkdir(root,{recursive:true});const dir=await mkdtemp(resolve(root,'community-'));
  try{
-  const result=await build({entryPoints:['src/CommunityPanel.tsx'],bundle:true,platform:'node',format:'esm',write:false,external:['react','react-dom','lucide-react']});
+  const result=await build({entryPoints:['src/CommunityPanel.tsx'],bundle:true,loader:{'.css':'empty'},platform:'node',format:'esm',write:false,external:['react','react-dom','lucide-react']});
   const file=resolve(dir,'components.mjs');await writeFile(file,result.outputFiles[0].contents);
   const {PlainMessage,CommunityHub}=await import(pathToFileURL(file).href);
   const dangerous='<script>alert(1)</script><img src=x onerror=alert(2)>';

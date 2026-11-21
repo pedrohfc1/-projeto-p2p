@@ -11,6 +11,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	"projetop2p/internal/community"
 	"projetop2p/internal/endpoint"
+	"projetop2p/internal/invite"
 	"projetop2p/internal/localdb"
 	"strings"
 	"sync"
@@ -180,7 +181,10 @@ func (s *Service) Handle(ctx context.Context, remote string, req community.Reque
 		return errorResponse("not_owner", "owner log unavailable on this node")
 	}
 	if r.State.Role(remote) == "" {
-		return errorResponse("forbidden", "current membership required; access may have been revoked")
+		if m, ok := r.State.Members[remote]; ok && m.Removed {
+			return errorResponse("membership_revoked", "participacao removida no registro assinado")
+		}
+		return errorResponse("membership_required", "ingresso ainda nao confirmado; consulte o resultado do convite")
 	}
 	switch req.Method {
 	case "invite.status":
@@ -265,8 +269,32 @@ func (s *Service) request(ctx context.Context, r localdb.CommunityRecord, req co
 	if t == nil {
 		return community.Response{}, errors.New("connectivity_failure: rede indisponível; operação preservada para nova tentativa")
 	}
-	if r.Scope != "" && r.Scope != scope && scope != "interface" {
-		return community.Response{}, fmt.Errorf("ative o modo %s usado pelo proprietário", r.Scope)
+	if r.State.Role(s.id) != "" {
+		if raw := s.peerRoutes(r)[r.Owner]; raw != "" {
+			if ticket, e := invite.Parse(raw, time.Now()); e == nil && ticket.ID == r.Owner {
+				r.Addresses = ticket.Addresses
+				r.Scope = ticket.Scope
+			}
+		}
+	}
+	routeAvailable := false
+	if live, ok := t.(interface{ AuthenticatedPeerAddresses(string) ([]string, bool) }); ok {
+		if addresses, connected := live.AuthenticatedPeerAddresses(r.Owner); connected {
+			routeAvailable = true
+			r.Scope = scope
+			if len(addresses) > 0 {
+				r.Addresses = addresses
+			}
+		}
+	}
+	if resolver, ok := t.(interface{ HasInvitationRoute(string) bool }); ok {
+		routeAvailable = routeAvailable || resolver.HasInvitationRoute(r.Owner)
+	}
+	if r.Scope != "" && r.Scope != scope && scope != "interface" && !routeAvailable {
+		if scope == "integrated" {
+			return community.Response{}, errors.New("transport_unavailable: comunidade guarda somente rota de outra rede; importe um convite integrado de contato do mesmo proprietario para recuperar a capacidade autenticada, sem recriar a comunidade")
+		}
+		return community.Response{}, fmt.Errorf("transport_unavailable: comunidade usa %s; modo ativo %s. Selecione a rede do convite ou importe uma rota integrada assinada atual", r.Scope, scope)
 	}
 	addresses := []string{}
 	for _, raw := range r.Addresses {
@@ -275,12 +303,21 @@ func (s *Service) request(ctx context.Context, r localdb.CommunityRecord, req co
 			addresses = append(addresses, raw)
 		}
 	}
-	if len(addresses) == 0 {
+	if len(addresses) == 0 && !routeAvailable {
 		return community.Response{}, errors.New("owner_unavailable: sem endereço compatível do proprietário; obtenha convite atualizado")
 	}
 	res, err := t.CommunityRequest(ctx, r.Owner, addresses, req)
 	if err != nil {
-		return res, fmt.Errorf("owner_unavailable: não foi possível contatar o proprietário: %w", err)
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return res, fmt.Errorf("timeout: tempo esgotado ao contatar a autoridade: %w", err)
+		}
+		if strings.Contains(err.Error(), "invalid_address:") {
+			return res, err
+		}
+		if scope == "integrated" && !routeAvailable {
+			return res, errors.New("transport_unavailable: falta rota EasyTier autenticada do proprietario; importe convite integrado atual do mesmo Peer ID")
+		}
+		return res, fmt.Errorf("connectivity_failure: proprietario nao alcancavel; estado offline ou caminho indisponivel (sem negacao de acesso): %w", err)
 	}
 	return res, nil
 }
@@ -322,7 +359,17 @@ func (s *Service) Join(ctx context.Context, raw string) (Receipt, error) {
 	}
 	_, scope := s.environment()
 	result := Receipt{ID: ticket.CommunityID, CommunityID: ticket.CommunityID, Status: "pendente"}
-	if scope != ticket.Scope && scope != "interface" {
+	compatibleRoute := false
+	if t, _ := s.environment(); t != nil {
+		if resolver, ok := t.(interface{ HasInvitationRoute(string) bool }); ok {
+			compatibleRoute = resolver.HasInvitationRoute(ticket.Owner)
+		}
+		if live, ok := t.(interface{ AuthenticatedPeerAddresses(string) ([]string, bool) }); ok {
+			_, connected := live.AuthenticatedPeerAddresses(ticket.Owner)
+			compatibleRoute = compatibleRoute || connected
+		}
+	}
+	if scope != ticket.Scope && scope != "interface" && !compatibleRoute {
 		result.RequiredMode = ticket.Scope
 		result.Message = "Escolha a rede do convite antes de ingressar"
 		return result, nil
@@ -388,6 +435,9 @@ func (s *Service) Join(ctx context.Context, raw string) (Receipt, error) {
 		result.Message = e.Error()
 		result.Code = failureCode(e.Error())
 		result.Status = "falhou"
+		if result.Code == "approval_pending" {
+			result.Status = "pendente"
+		}
 		pending, _ := s.db.CommunityPending(record.ID)
 		for _, q := range pending {
 			if q.Operation.ID == op.ID && q.Status == "falhou" {
@@ -401,7 +451,7 @@ func (s *Service) Join(ctx context.Context, raw string) (Receipt, error) {
 	latest, _ := s.db.Community(record.ID)
 	if latest.State.Role(s.id) != "" {
 		result.Status = "participante"
-		if latest.State.MemberLimit > 0 {
+		if latest.State.Role(s.id) != "" && !latest.Denied {
 			_ = s.DiscoverPeers(ctx, record.ID)
 		}
 		return result, nil
@@ -467,6 +517,9 @@ func (s *Service) Action(ctx context.Context, id, kind string, body community.Bo
 		return receipt, e
 	}
 	if e = s.Sync(ctx, id); e != nil {
+		if kind == community.Text && (strings.Contains(e.Error(), "connectivity_failure:") || strings.Contains(e.Error(), "owner_unavailable:") || strings.Contains(e.Error(), "timeout:") || strings.Contains(e.Error(), "invalid_address:") || strings.Contains(e.Error(), "transport_unavailable:")) {
+			return s.postPeerText(ctx, r, body, op)
+		}
 		receipt.Message = e.Error()
 		return receipt, nil
 	}
@@ -530,8 +583,18 @@ func (s *Service) read(ctx context.Context, id string) error {
 			return e
 		}
 		if res.Error != "" {
-			_ = s.db.CommunityStatus(id, res.Error, res.Code == "forbidden")
-			return errors.New(res.Error)
+			revoked := r.Denied
+			if res.Code == "membership_revoked" {
+				revoked = true
+			}
+			_ = s.db.CommunityStatus(id, res.Error, revoked)
+			pending, _ := s.db.CommunityPending(id)
+			for _, q := range pending {
+				if q.Operation.Kind == community.Join && q.Status == "falhou" {
+					return errors.New(q.Error)
+				}
+			}
+			return errors.New(res.Code + ": " + res.Error)
 		}
 		if len(res.Commits) > community.BatchSize {
 			return errors.New("oversized sync batch")
@@ -636,10 +699,13 @@ func (s *Service) InviteStatus(ctx context.Context, id, raw string) (community.I
 
 // Stable machine-readable causes without discarding the diagnostic returned by the authority.
 func failureCode(message string) string {
-	for _, code := range []string{"invite_expired", "invite_used", "invite_revoked", "invite_exhausted", "invite_registry_full", "community_full", "owner_unavailable", "connectivity_failure"} {
+	for _, code := range []string{"invite_expired", "invite_used", "invite_revoked", "invite_exhausted", "invite_registry_full", "community_full", "owner_unavailable", "connectivity_failure", "timeout", "membership_revoked", "invalid_address", "transport_unavailable"} {
 		if strings.Contains(message, code+":") {
 			return code
 		}
+	}
+	if strings.Contains(message, "membership_required:") {
+		return "approval_pending"
 	}
 	return "sync_failure"
 }

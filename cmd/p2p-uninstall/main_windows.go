@@ -7,10 +7,14 @@ import (
 )
 
 func main() {
-	if len(os.Args) == 3 && os.Args[1] == "--cleanup" {
+	if (len(os.Args) == 3 || len(os.Args) == 4) && os.Args[1] == "--cleanup" {
 		n, e := strconv.ParseUint(os.Args[2], 10, 32)
 		if e == nil {
-			_ = installwin.Cleanup(uint32(n))
+			if len(os.Args) == 4 {
+				_ = installwin.CleanupAt(uint32(n), os.Args[3])
+			} else {
+				_ = installwin.Cleanup(uint32(n))
+			}
 		}
 		return
 	}

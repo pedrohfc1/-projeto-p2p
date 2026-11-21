@@ -1,0 +1,4 @@
+export type UIPreferences={community:string;contact:string;tab:'chat'|'network';members:boolean};
+const defaults:UIPreferences={community:'',contact:'',tab:'chat',members:true};const key='peetwopee.ui.v1';
+export function readUI():UIPreferences{try{const value=JSON.parse(localStorage.getItem(key)||'{}');return {community:typeof value.community==='string'&&/^(?:[a-f0-9]{32}|[a-f0-9]{64})$/.test(value.community)?value.community:'',contact:typeof value.contact==='string'&&value.contact.length<128?value.contact:'',tab:value.tab==='network'?'network':'chat',members:typeof value.members==='boolean'?value.members:true}}catch{return {...defaults}}}
+export function saveUI(patch:Partial<UIPreferences>){try{localStorage.setItem(key,JSON.stringify({...readUI(),...patch}))}catch{/* Preferences must not interrupt audio when storage is unavailable. */}}

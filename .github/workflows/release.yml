@@ -57,8 +57,8 @@ jobs:
       - name: Source, inventory and checksums
         run: |
           v=$(cat VERSION)
-          test -f "dist/release/ProjetoP2P-Setup-v$v.exe"
-          test -f "dist/release/ProjetoP2P-v$v-linux-amd64.tar.gz"
+          test -f "dist/release/PeeTwoPee-Setup-v$v.exe"
+          test -f "dist/release/PeeTwoPee-v$v-linux-amd64.tar.gz"
           python3 scripts/package-distribution.py source
           python3 scripts/package-distribution.py checksums
           (cd dist/release && sha256sum --check SHA256SUMS.txt)
@@ -88,4 +88,4 @@ jobs:
           TAG: ${{ needs.version.outputs.tag }}
         run: |
           (cd packages && sha256sum --check SHA256SUMS.txt)
-          gh release create "$TAG" packages/* --verify-tag --generate-notes --title "Projeto P2P $TAG" --latest
+          gh release create "$TAG" packages/* --verify-tag --generate-notes --title "PeeTwoPee $TAG" --latest

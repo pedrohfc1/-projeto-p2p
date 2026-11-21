@@ -1,0 +1,31 @@
+{
+  "version": "0.9.3",
+  "scope": "Frontend presentation only; production media and authorization logic preserved",
+  "passed": [
+    "44 frontend automated tests",
+    "Vite/TypeScript build",
+    "go test ./...",
+    "go vet ./...",
+    "Windows and Linux CLI builds",
+    "Windows native Wails prompt-v1 build",
+    "Native WebView2 visual inspection at normal 1180x790 window and maximized 1920x1080 desktop, isolated profile; community navigation, channel list, welcome, members, audio settings rendered",
+    "Installer exact payload/license/source hashes; no installation performed",
+    "PE dependency audit",
+    "gitleaks and public source audit",
+    "git diff --check",
+    "Version consistency"
+  ],
+  "blocked": [
+    "Headless Edge browser regression suite: browser launch exited before tests; not passed",
+    "In-app browser could not reach loopback QA server"
+  ],
+  "notExecuted": [
+    "Physical microphone/voice/video between PCs",
+    "Full installer clean/upgrade/tray/reboot validation for this version",
+    "Native Linux GUI and race tests",
+    "All responsive widths and in-call/screen-share visual states"
+  ],
+  "appSHA256": "4705570dd929a3f1137c96ed19ee2025321c0ced462579eb1a0bc972d1bb886c",
+  "setupSHA256": "e43af249285a9bb82146d487efbca557e419ff4b3bc961193089abb27948ff1a",
+  "publicRelease": false
+}

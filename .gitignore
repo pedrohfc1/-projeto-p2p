@@ -44,3 +44,12 @@ Desktop.ini
 /cmd/p2p-setup/payload/*.zip
 
 /frontend/package.json.md5
+
+build/permission-policy/
+/internal/loopback/capture.bin
+
+# Private tsnet node state (never distribute credentials)
+tailscaled.state
+tailscaled.log*
+/experiments/tsnet/state/
+.peetwopee-tsnet-lab

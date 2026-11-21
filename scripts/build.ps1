@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 Push-Location (Join-Path $PSScriptRoot '..')
 $oldOS=$env:GOOS; $oldArch=$env:GOARCH; $oldCGO=$env:CGO_ENABLED
 try {
+ ./scripts/build-loopback.ps1
  New-Item -ItemType Directory -Force dist | Out-Null
  $env:GOARCH='amd64'; $env:CGO_ENABLED='0'
  foreach ($target in @('windows','linux')) {

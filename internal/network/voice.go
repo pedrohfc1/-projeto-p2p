@@ -6,6 +6,7 @@ import (
 	libnet "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"log/slog"
 	"projetop2p/internal/security"
 	"projetop2p/internal/voice"
 	"time"
@@ -38,6 +39,7 @@ func (n *Node) SetVoiceHandler(handler func(context.Context, string, voice.Reque
 			stream.Reset()
 			return
 		}
+		slog.Info("voice_authorization", "flow", mediaFlow(req.Nonce), "source_session", mediaFlow(req.Participant.Session), "stream", stream.ID(), "result", "request_received")
 		res := handler(ctx, stream.Conn().RemotePeer().String(), req)
 		if writeCommunityFrame(stream, maxVoiceFrame, res) != nil {
 			stream.Reset()
@@ -66,6 +68,7 @@ func (n *Node) VoiceRequest(ctx context.Context, id string, addresses []string, 
 	}
 	stream, e := n.Host.NewStream(libnet.WithAllowLimitedConn(ctx, "authenticated voice signaling"), pid, VoiceProtocol)
 	if e != nil {
+		n.failedVoiceStream(pid, e)
 		return result, e
 	}
 	defer stream.Close()

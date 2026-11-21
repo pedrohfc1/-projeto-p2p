@@ -1,0 +1,66 @@
+{
+  "version": "0.9.8",
+  "private": true,
+  "published": false,
+  "appSHA256": "577a92f8609e3dee1ee715fa54111f52c83a8675ec4c7c1d80db3a10dc858a1c",
+  "nativeCaptureHelperSHA256": "7f59e47c7fd59ffaa5352ca007350963a7e72638f235a19c85870d3feb49db50",
+  "rollbackSourceSHA256": "0f004d1497ed3bcaab26aecf50ebc0910ee1205c84707556996193484ed5bfa2",
+  "passed": [
+    "68 frontend tests: activation synchronously before async permission, recoverable blocked playback, fulfilled-but-suspended context, timeout, independent gains, automatic source unique-title/fail-closed policy, distinct physical output validation, stable member grouping; previous microphone/monitor/stream tests",
+    "npm ci, TypeScript/Vite production build",
+    "Go test -timeout 3m ./...; go vet ./...",
+    "Windows native helper compilation and source catalog execution/own process rejection; no physical capture",
+    "Windows and Linux CLI compilation; three-process CLI smoke: text, signed identity, explicit invites, bootstrap outage, identity reuse and changed address recovery",
+    "Real encrypted EasyTier/libp2p with synthetic VP8+Opus+fake system capture: screen/voice/chat concurrently, subscriber gates, reconnect, authorization and cleanup (38.81s)",
+    "2/3/4/6 independent local production processes: generated Opus bidirectional mesh (200.62s)",
+    "Three peers: owner outage, stream reset and recovery (96.83s)",
+    "Windows Wails build with prompt-v1 permission policy; no automatic permission grants"
+  ],
+  "networkFixtureLatency": [
+    {
+      "meanMs": 11.806722,
+      "maxMs": 23.7745,
+      "samples": 200,
+      "scope": "same-machine generated RTP through Pion; not acoustic or WAN latency"
+    },
+    {
+      "meanMs": 10.872146,
+      "maxMs": 20.4748,
+      "samples": 600,
+      "scope": "same-machine generated RTP through Pion; not acoustic or WAN latency"
+    },
+    {
+      "meanMs": 10.345002,
+      "maxMs": 21.1145,
+      "samples": 1200,
+      "scope": "same-machine generated RTP through Pion; not acoustic or WAN latency"
+    },
+    {
+      "meanMs": 10.70657,
+      "maxMs": 21.606,
+      "samples": 3000,
+      "scope": "same-machine generated RTP through Pion; not acoustic or WAN latency"
+    }
+  ],
+  "preserved": {
+    "frontend/src/screenCapture.ts": true,
+    "videoPlayerUnchanged": true,
+    "profileDockUnchanged": true,
+    "internal/voice/screen.go": true
+  },
+  "pending": [
+    "Physical microphones/speakers, audible loopback and two-PC voice without touching WASAPI",
+    "Actual getDisplayMedia/native title association and WASAPI game capture; hardware-specific autoplay",
+    "Automatic monitor capture on separate physical output, no-echo validation; ambiguous/window labels require manual advanced source",
+    "Physical minimizing/restoring, tray indication, actual video FPS/CPU/RAM and 1080p60",
+    "Complete interactive installer upgrade/HKCU/reboot",
+    "Visual/responsive/browser QA: Edge headless exited (Crashpad pipe); native isolated QA launch rejected by automatic approval review (approval required, sandbox approvals disabled)"
+  ],
+  "limitations": [
+    "Automatic window capture requires unique exact OS window label; no silent global fallback",
+    "Monitor default-output audio is blocked unless a physically distinct call output can be established; device/output change stops whole-output capture",
+    "Shared-output capture cannot selectively remove PeeTwoPee; advanced exclude-process mode has broader endpoint scope",
+    "No new 10-minute physical validation; 0.9.7 baseline synthetic soak is not relabeled as 0.9.8 testing",
+    "Public release remains blocked by existing Rust advisories and quarantined legacy DHT"
+  ]
+}

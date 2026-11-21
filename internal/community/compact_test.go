@@ -28,7 +28,8 @@ func TestCompactCommunityCompatibilityAndSizes(t *testing.T) {
 	if len(raw) >= len(legacy) {
 		t.Fatal("no reduction")
 	}
-	f, _ := compactinvite.Decode(raw, CompactInvitePrefix, 16000)
+	v2, _ := encodeCompactV2(a)
+	f, _ := compactinvite.Decode(v2, CompactInvitePrefix, 16000)
 	f[10] = [][]byte{compactinvite.Number(a.Epoch + 1)}
 	if _, e = ParseInvite(compactinvite.Encode(CompactInvitePrefix, f), time.Now()); e == nil {
 		t.Fatal("epoch tampering accepted")

@@ -1,0 +1,293 @@
+{
+  "version": "0.8.1",
+  "date": "2026-11-05",
+  "distribution": "private beta only; not published",
+  "fixes": [
+    "Audio acquisition busy separated from active-call settings and authorization; enumeration deduplicated and bounded at four seconds, no longer awaited by call join",
+    "Removed Quit PeeTwoPee button from voice settings; native tray quit/hide unchanged",
+    "Pending direct-message ACK no longer holds the Core global mutex used by audio/network controls; signing uses immutable persistent identity",
+    "Integrated default for fresh/unselected profiles; existing explicit modes including legacy blank/native maintained; pre-mode explicit native bootstrap/relay configurations preserved",
+    "SelectNetwork persists transport/adapter before startup and preserves unrelated settings; failure cannot select another transport",
+    "Reusable settings headers/status and unified styles; per-profile navigation/member-panel preferences; integrated adapter discovery cached for thirty seconds, native interface monitoring preserved"
+  ],
+  "tests": {
+    "frontend": "31 unit tests, TypeScript and Vite production build passed",
+    "go": "Final go test ./... and go vet ./... passed",
+    "settings": "New/missing mode defaults, explicit old selections, legacy native operators, unavailable selected interface persistence and identity preservation passed",
+    "defaultReal": "Independent isolated real production backend: first launch integrated/helper running, restart auto unchanged, failed manual interface unchanged after restart, integrated restored with same identity/community passed",
+    "responsiveness": "Delayed remote chat ACK did not block VoiceState/State; device enumeration timeout/dedup and recovery passed",
+    "communities": "Three independent backends over real EasyTier: signed invite policies/admissions, roles, text, durable journals, restart, deduplication, revocation and direct chat passed",
+    "group6": "Six independent backends over real EasyTier; ten-second synthetic media interval (500 frames/source), each received five sources and 2500 packets, zero application drops; leave/rejoin and chat passed, 95.21s complete test",
+    "recovery": "Owner offline >65s while authorized voice/text continued, forced media reconnect, owner restart, old signed invitation and obsolete port resolved with authenticated expected Peer ID passed; complete owner scenario113.50s",
+    "screen": "Generated VP8 over real EasyTier decoded, simultaneous Opus/chat, preview isolation, authorization rejection, reconnection, visibility expiry and cleanup passed39.26s",
+    "voice": "Production mute/deaf/local bridge rebind/reconnect/revocation passed36.45s; independent actual generated Opus decode recorded separately",
+    "opus": "Two independent production processes, 250/250 generated Opus frames each direction, decoded PCM RMS0.08759495, passed19.36s; not physical microphone/playback",
+    "build": "Native Windows desktop/setup0.8.1.0, Windows/Linux CLI and Linux tray cross-compilation passed; exact payload/PE/licenses/full corresponding source and Default consent-policy verification passed; no full installation executed",
+    "audit": "Version consistency/actionlint/diff check passed; public-path/gitleaks audit recorded with delivery; govulncheck0 reachable/0 imported-package/8 module-only findings; unresolved Rust release block remains"
+  },
+  "group6Metrics": [
+    {
+      "backend": {
+        "connections": 5,
+        "cpuPercent": 6.382745556894225,
+        "cpuSecs": 2.109375,
+        "downloadBps": 12596.670975306175,
+        "downloadBytes": 344129,
+        "goroutines": 100,
+        "heapBytes": 2807288,
+        "lastConnectMs": null,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "pingMs": null,
+        "rssBytes": 33902592,
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico",
+        "streams": 5,
+        "uploadBps": 21226.40292004621,
+        "uploadBytes": 629273
+      },
+      "connectionSeconds": 8.2154157,
+      "frames": 500,
+      "index": 0,
+      "media": {
+        "dropped": 0,
+        "queueDelayMs": 0,
+        "transport": "libp2p-stream",
+        "jitterMs": null,
+        "packetsLost": null,
+        "roundTripMs": null,
+        "state": "connected",
+        "packetsIn": 2500,
+        "packetsOut": 2500,
+        "bytesIn": 57500,
+        "bytesOut": 57500
+      },
+      "peers": 6
+    },
+    {
+      "backend": {
+        "connections": 7,
+        "cpuPercent": 4.874269725768498,
+        "cpuSecs": 1.78125,
+        "downloadBps": 11252.451274887251,
+        "downloadBytes": 297478,
+        "goroutines": 122,
+        "heapBytes": 3261896,
+        "lastConnectMs": 3505.994,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "pingMs": null,
+        "rssBytes": 34615296,
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico",
+        "streams": 5,
+        "uploadBps": 10220.628722043426,
+        "uploadBytes": 251639
+      },
+      "connectionSeconds": 8.2154157,
+      "frames": 500,
+      "index": 1,
+      "media": {
+        "dropped": 0,
+        "queueDelayMs": 0,
+        "transport": "libp2p-stream",
+        "jitterMs": null,
+        "packetsLost": null,
+        "roundTripMs": null,
+        "state": "connected",
+        "packetsIn": 2500,
+        "packetsOut": 2500,
+        "bytesIn": 57500,
+        "bytesOut": 57500
+      },
+      "peers": 6
+    },
+    {
+      "backend": {
+        "connections": 7,
+        "cpuPercent": 5.710499339562338,
+        "cpuSecs": 2.046875,
+        "downloadBps": 11176.803742468648,
+        "downloadBytes": 339368,
+        "goroutines": 130,
+        "heapBytes": 3282776,
+        "lastConnectMs": 1735.875,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "pingMs": null,
+        "rssBytes": 35565568,
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico",
+        "streams": 5,
+        "uploadBps": 9261.283167270085,
+        "uploadBytes": 205374
+      },
+      "connectionSeconds": 8.2154157,
+      "frames": 500,
+      "index": 2,
+      "media": {
+        "dropped": 0,
+        "queueDelayMs": 0,
+        "transport": "libp2p-stream",
+        "jitterMs": null,
+        "packetsLost": null,
+        "roundTripMs": null,
+        "state": "connected",
+        "packetsIn": 2500,
+        "packetsOut": 2500,
+        "bytesIn": 57500,
+        "bytesOut": 57500
+      },
+      "peers": 6
+    },
+    {
+      "backend": {
+        "connections": 6,
+        "cpuPercent": 5.361092217275389,
+        "cpuSecs": 1.90625,
+        "downloadBps": 10919.920162801172,
+        "downloadBytes": 267155,
+        "goroutines": 117,
+        "heapBytes": 3420936,
+        "lastConnectMs": 6460.79,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "pingMs": null,
+        "rssBytes": 34885632,
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico",
+        "streams": 5,
+        "uploadBps": 9379.431292354027,
+        "uploadBytes": 252371
+      },
+      "connectionSeconds": 8.2154157,
+      "frames": 500,
+      "index": 3,
+      "media": {
+        "dropped": 0,
+        "queueDelayMs": 0,
+        "transport": "libp2p-stream",
+        "jitterMs": null,
+        "packetsLost": null,
+        "roundTripMs": null,
+        "state": "connected",
+        "packetsIn": 2500,
+        "packetsOut": 2500,
+        "bytesIn": 57500,
+        "bytesOut": 57500
+      },
+      "peers": 6
+    },
+    {
+      "backend": {
+        "connections": 7,
+        "cpuPercent": 4.31218245228276,
+        "cpuSecs": 1.484375,
+        "downloadBps": 10772.307271326801,
+        "downloadBytes": 239467,
+        "goroutines": 121,
+        "heapBytes": 2944272,
+        "lastConnectMs": 6929.497,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "pingMs": null,
+        "rssBytes": 35278848,
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico",
+        "streams": 5,
+        "uploadBps": 8607.06023292998,
+        "uploadBytes": 189496
+      },
+      "connectionSeconds": 8.2154157,
+      "frames": 500,
+      "index": 4,
+      "media": {
+        "dropped": 0,
+        "queueDelayMs": 0,
+        "transport": "libp2p-stream",
+        "jitterMs": null,
+        "packetsLost": null,
+        "roundTripMs": null,
+        "state": "connected",
+        "packetsIn": 2500,
+        "packetsOut": 2500,
+        "bytesIn": 57500,
+        "bytesOut": 57500
+      },
+      "peers": 6
+    },
+    {
+      "backend": {
+        "connections": 8,
+        "cpuPercent": 5.5943995435865075,
+        "cpuSecs": 1.59375,
+        "downloadBps": 10820.538413217193,
+        "downloadBytes": 206214,
+        "goroutines": 127,
+        "heapBytes": 2815784,
+        "lastConnectMs": 3730.638,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "pingMs": null,
+        "rssBytes": 34844672,
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico",
+        "streams": 5,
+        "uploadBps": 8811.403057130492,
+        "uploadBytes": 166500
+      },
+      "connectionSeconds": 8.2154157,
+      "frames": 500,
+      "index": 5,
+      "media": {
+        "dropped": 0,
+        "queueDelayMs": 0,
+        "transport": "libp2p-stream",
+        "jitterMs": null,
+        "packetsLost": null,
+        "roundTripMs": null,
+        "state": "connected",
+        "packetsIn": 2500,
+        "packetsOut": 2500,
+        "bytesIn": 57500,
+        "bytesOut": 57500
+      },
+      "peers": 6
+    }
+  ],
+  "performance": {
+    "scope": "Six independent Go backend processes on one PC with synthetic RTP/Pion peers; excludes helper processes, WebView2, physical microphone capture, audio/video codecs in renderer and display",
+    "rssMiBRange": [
+      32.33,
+      33.92
+    ],
+    "cpuPercentOneCoreRange": [
+      4.31,
+      6.38
+    ],
+    "rtpBridgeMeanMs": 10.600962,
+    "rtpBridgeMaxMs": 21.2096,
+    "latencyScope": "same-PC encoded RTP bridge delivery, not acoustic end-to-end or WAN latency",
+    "windowOpenVsMinimized": "Not measured: no native renderer automation available in current sandbox; do not infer whole-app performance from backend measurements",
+    "adapterPolling": "Unit fixture: one adapter enumeration across repeated unchanged integrated status polls; cached30s. No native IP-monitoring delay introduced"
+  },
+  "pending": [
+    "Physical microphone/output replacement and audible local monitor during a call",
+    "Native WebView2 layout, keyboard/responsiveness at actual resolutions and minimize/tray/restore",
+    "Whole-process-tree CPU/RAM for window open, minimized and active physical call",
+    "Two physical PCs/houses/CGNAT and real public relay failure",
+    "Physical screen/window selection and GPU behavior",
+    "Full clean installer/upgrade rather than payload verification",
+    "Linux desktop/portal and Linux race checks unavailable on Windows"
+  ],
+  "limitations": [
+    "Changing the actual network transport may end the active call; changing microphone/output uses existing call",
+    "Existing owner-signed offline voice lease finite up to fifteen minutes; new admissions/admin/new call sessions require authority",
+    "Invitations remain self-contained; no central short-code resolver or OS deep-link registration added",
+    "Screen VP8 may use software encoding and TCP can introduce head-of-line latency",
+    "Native UI browser startup/localhost restrictions from prior QA remain; physical/UI tests not declared passed",
+    "Unresolved Rust public gate and legacy DHT quarantine preserved"
+  ],
+  "privacy": "No automatic microphone/screen permissions, recording, camera, firewall/VPN/routes/DNS changes; local test remains local, private delivery only",
+  "permissionBuild": {
+    "module": "github.com/wailsapp/wails/v2@v2.17.0",
+    "originalSHA256": "9598c7f21779e2332db788a9e09f3b4856d563ab5fc2c93bf7035743b9d7befa",
+    "policy": "WebView2 Default (user prompt), no automatic grants"
+  },
+  "appSHA256": "698230d668d26f5750141936502ad5b44f331a8ee9f3fbf9e585d7ae7761e44e",
+  "setupSHA256": "3f2b93b308788a676f47690bfb2ab4118ddd071832be461033452fba6a9ef4ed"
+}

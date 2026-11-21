@@ -59,13 +59,25 @@ func Open(dir string) (*DB, error) {
 }
 func (d *DB) Close() error { return d.db.Close() }
 func (d *DB) Settings() (Settings, error) {
-	s := Settings{Name: "Meu perfil", Bootstrap: []string{}, Relays: []string{}, Assisted: true}
+	s := Settings{Mode: "integrated", Name: "Meu perfil", Bootstrap: []string{}, Relays: []string{}, Assisted: true}
 	e := d.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("settings")).Get([]byte("profile"))
 		if b == nil {
 			return nil
 		}
-		return json.Unmarshal(b, &s)
+
+		if e := json.Unmarshal(b, &s); e != nil {
+			return e
+		}
+		// Pre-mode profiles with explicitly configured native operators retain native routing.
+		var fields map[string]json.RawMessage
+		if e := json.Unmarshal(b, &fields); e != nil {
+			return e
+		}
+		if _, present := fields["mode"]; !present && (len(s.Bootstrap) > 0 || len(s.Relays) > 0) {
+			s.Mode = "auto"
+		}
+		return nil
 	})
 	return s, e
 }
@@ -189,4 +201,19 @@ func (d *DB) Messages(id string) ([]Message, error) {
 		out[i], out[j] = out[j], out[i]
 	}
 	return out, e
+}
+
+// CheckProfileIdle runs before creating WebView2, including for legacy apps without instance guards.
+func CheckProfileIdle(dir string) error {
+	p := filepath.Join(dir, "chat.db")
+	if _, e := os.Stat(p); os.IsNotExist(e) {
+		return nil
+	} else if e != nil {
+		return e
+	}
+	db, e := bolt.Open(p, 0600, &bolt.Options{ReadOnly: true, Timeout: 100 * time.Millisecond})
+	if e != nil {
+		return errors.New("perfil em uso por outra versão; encerre o aplicativo pela bandeja antes de iniciar")
+	}
+	return db.Close()
 }

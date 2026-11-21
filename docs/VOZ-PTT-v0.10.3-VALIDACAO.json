@@ -1,0 +1,81 @@
+{
+  "version": "0.10.3",
+  "privateBetaOnly": true,
+  "published": false,
+  "frontendTestsPassed": 107,
+  "goAllPassed": true,
+  "goVetPassed": true,
+  "backendPreferencePersistenceAndInvalidPolicyRejection": true,
+  "windowsLinuxCLIBuild": true,
+  "cliThreeProcessSmoke": true,
+  "browserUI": {
+    "passed": true,
+    "scope": "headless Edge; synthetic input/output, real production Core; not physical microphones",
+    "monitorSwapRecovery": true,
+    "singleTestButton": true,
+    "borrowedCallMonitor": true,
+    "deviceHandoverDuringCall": true,
+    "pttKeyBinding": "KeyV",
+    "releaseBoundaryMs": 500,
+    "manualThresholdBoundaryDb": -60,
+    "layouts": [
+      760,
+      900,
+      1280,
+      1600
+    ],
+    "simulatedHideRestore": true,
+    "noUnexpectedJSErrors": true,
+    "backendSavedEntryPolicyVerified": true
+  },
+  "browserMedia": {
+    "passed": true,
+    "scope": "generated PCM -> production MicrophoneGain/AudioWorklet -> actual Opus -> two production cores via EasyTier/libp2p -> decoded PCM",
+    "soakSeconds": 30,
+    "bidirectional": true,
+    "pttClosedVerified": true,
+    "pttKeyHoldVerified": true,
+    "textFocusPTTResetVerified": true,
+    "voiceActivationRecoveryVerified": true,
+    "concurrentChatAndCleanup": true
+  },
+  "groupVoiceRegression": {
+    "peers": [
+      2,
+      3
+    ],
+    "durationSeconds": 70.1,
+    "scope": "actual encrypted transport on one PC; generated Opus"
+  },
+  "screenVoiceRegression": {
+    "passed": true,
+    "durationSeconds": 39.52,
+    "scope": "generated VP8 and Opus, fake system-audio injection; actual encrypted EasyTier; not physical screen/WASAPI"
+  },
+  "nativeWindowsUI": {
+    "visualInspection": true,
+    "voiceModePersistenceOnReopen": true,
+    "finalNativeAcousticTest": false,
+    "nativeKeyCapturePhysicallyVerified": false,
+    "isolatedProfile": true,
+    "cleanExit": true
+  },
+  "pending": [
+    "physical device swap/capture/playback and PTT in WebView2",
+    "real voice/video between two Windows PCs",
+    "perceptual automatic sensitivity in noisy environments",
+    "real minimized call; global PTT not implemented or promised",
+    "full installer clean/upgrade/reboot",
+    "native Linux GUI/race checks"
+  ],
+  "initialTestIssuesResolved": [
+    "Read-only explicit key editor avoids focus loss from disabling a recording button.",
+    "QA WebUI lacked ScreenAudio API bridge; exposed actual Core operations behind existing loopback nonce/origin checks. No automatic capture.",
+    "Synthetic getUserMedia fixture now reports its selected deviceId; production handover identity check preserved.",
+    "Browser graph test initialized its own bundle before navigation; production CSP unchanged.",
+    "AudioWorklet module load is deduplicated per AudioContext for microphone replacement."
+  ],
+  "logarithmicRawRMSMeterTested": true,
+  "installerPayloadVerified": true,
+  "monoWorkletAndModuleDeduplicationTested": true
+}

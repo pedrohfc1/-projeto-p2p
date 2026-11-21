@@ -11,7 +11,7 @@ def notices(z,folder,prefix):
  if not folder.is_dir():return
  for f in sorted(folder.iterdir()):
   if f.is_file() and f.name.upper().startswith(('LICENSE','LICENCE','COPYING','NOTICE','PATENTS','AUTHORS')):put(z,prefix+'/'+f.name,f.read_bytes())
-with zipfile.ZipFile(out/f'ProjetoP2P-v{v}-licencas-{platform.system().lower()}.zip','w',zipfile.ZIP_DEFLATED) as z:
+with zipfile.ZipFile(out/f'PeeTwoPee-v{v}-licencas-{platform.system().lower()}.zip','w',zipfile.ZIP_DEFLATED) as z:
  put(z,'ProjetoP2P-LICENSE.txt',(p/'LICENSE').read_bytes());put(z,'THIRD_PARTY_NOTICES.md',(p/'THIRD_PARTY_NOTICES.md').read_bytes())
 
  for f in (p/'third_party/etcat').iterdir():

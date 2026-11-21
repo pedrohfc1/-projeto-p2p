@@ -1,0 +1,149 @@
+{
+  "version": "0.9.5",
+  "causasReproduzidas": [
+    "Renovação reutilizava deadline consumido pela sincronização",
+    "Guarda alterava Expires da prova assinada",
+    "Roster não atualizava rota do peer com mesma sessão",
+    "Tentativas removidas não eram canceladas/fenced e respostas atrasadas podiam regredir lease",
+    "Startup do helper SOCKS esperava readiness sob mutex global; conexão libp2p obsoleta podia permanecer marcada como conectada"
+  ],
+  "seguranca": {
+    "assinaturaEd25519Obrigatoria": true,
+    "identidadeNoiseObrigatoria": true,
+    "validadeOfflineSegundos": 900,
+    "validadeNaoAmpliada": true,
+    "provaImutavel": true,
+    "revogacaoConhecidaPausaMidia": true,
+    "semAutorizacaoSemMidia": true,
+    "publicacaoPublica": false
+  },
+  "aprovados": [
+    "51 testes frontend; status de captura não implica transmissão; ponte local e TX/RX separados",
+    "go test ./... e go vet ./...",
+    "Renovação antes de sincronização bloqueada; prova assinada imutável; adoção autenticada de prova atual; replay/expiração rejeitados",
+    "Nova sessão autenticada substitui a anterior; renew antigo não recupera a ocupação; rota atualizada; tentativa cancelada não anexa stream obsoleto; renovação atrasada não regride prova",
+    "Espera por startup de peer não bloqueia mutex global",
+    "Dois processos reais, Opus sintético bidirecional por 600 segundos nominais (teste completo 622.64 s), 30000 pacotes recebidos por direção, autorizações renovadas",
+    "Mesh em dois e três processos, saída/reingresso e mídia recuperada",
+    "Três cores reais: proprietário/endpoint EasyTier offline >45 s, mídia autorizada continua, reset da conexão entre membros, reinício do proprietário e nova geração, recuperação sem novas sessões",
+    "VP8 gerado com Opus e chat simultâneos, preview isolado, reconexão, expiração de visibilidade e limpeza",
+    "Reinício real do helper EasyTier auditado pelo supervisor; identidade de transporte preservada",
+    "Compilação Windows nativa prompt-v1 e CLI Windows/Linux; payload do instalador e licenças verificados"
+  ],
+  "metricasSoak": {
+    "escopo": "Mídia já codificada/sintética; uma máquina, dois processos de produção e EasyTier real. Não mede captura física até som reproduzido. CPU/RAM dos processos Go, sem WebView/helper.",
+    "pacotesPorSentido": 30000,
+    "rtp": {
+      "a": {
+        "dropped": 0,
+        "queueDelayMs": 0,
+        "transport": "libp2p-stream",
+        "jitterMs": null,
+        "packetsLost": null,
+        "roundTripMs": null,
+        "state": "connected",
+        "packetsIn": 30000,
+        "packetsOut": 30000,
+        "bytesIn": 450000,
+        "bytesOut": 450000
+      },
+      "b": {
+        "dropped": 0,
+        "queueDelayMs": 0,
+        "transport": "libp2p-stream",
+        "jitterMs": null,
+        "packetsLost": null,
+        "roundTripMs": null,
+        "state": "connected",
+        "packetsIn": 30000,
+        "packetsOut": 30000,
+        "bytesIn": 450000,
+        "bytesOut": 450000
+      }
+    },
+    "latenciaMediaPonteRtpMs": 11.035561,
+    "latenciaMaximaPonteRtpMs": 40.92,
+    "amostrasLatencia": 60000,
+    "recursosGo": [
+      {
+        "connections": 1,
+        "cpuPercent": 3.3910812745555234,
+        "cpuSecs": 21.046875,
+        "downloadBps": 3467.102053781722,
+        "downloadBytes": 2125849,
+        "goroutines": 70,
+        "heapBytes": 3580528,
+        "lastConnectMs": null,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "pingMs": null,
+        "rssBytes": 34033664,
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico",
+        "streams": 1,
+        "uploadBps": 3712.665848869101,
+        "uploadBytes": 2276334
+      },
+      {
+        "connections": 1,
+        "cpuPercent": 2.4192844463263876,
+        "cpuSecs": 15,
+        "downloadBps": 3712.6754432345974,
+        "downloadBytes": 2276334,
+        "goroutines": 73,
+        "heapBytes": 3246688,
+        "lastConnectMs": 4570.378,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "pingMs": null,
+        "rssBytes": 35016704,
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico",
+        "streams": 1,
+        "uploadBps": 3467.111013555015,
+        "uploadBytes": 2125849
+      }
+    ]
+  },
+  "pendentes": [
+    "Dois computadores físicos em casas/redes diferentes, microfones/alto-falantes reais, CGNAT e qualidade perceptiva",
+    "Falha do helper do próprio membro durante chamada ativa e alternância real entre redes; supervisor isolado e perda/retorno do endpoint do proprietário foram exercitados",
+    "Contador bruto de frames capturados indisponível no WebView: n/d explícito; duração das amostras e pacotes Opus medidos separadamente",
+    "Instalação interativa completa, bandeja e reinício do Windows nesta versão; smoke verifica payload sem instalar",
+    "Linux GUI nativa e race tests não executados"
+  ],
+  "limites": [
+    "TCP conserva head-of-line blocking; não há promessa de latência WAN a partir de loopback",
+    "Sem logs completos das duas casas, as causas reproduzidas não provam explicação exclusiva para cada erro real",
+    "A sessão retomada exigiu liberação de rede do ambiente de execução para testes locais; nenhum firewall/roteador foi alterado"
+  ],
+  "appSHA256": "a90cc55f73263e16d82bc00c07e3fee5ee5250e0aa88952cf5a2cc0595f71836",
+  "setupSHA256": "8b7a5d7d45771b3d1c7a15b6e73b657f972cf33f1a7f6b186cb3b5694d71be26",
+  "testBinarySHA256": "0cec44623eab78dc431f668de814f0106cf27fd61ebcc38efff4cc10e84a646c",
+  "qaBackendSHA256": "31ddee4ad324c25efedc9bf4d8638153f265d40ef0e6c22ba183dbc11799ccef",
+  "correlacaoDuasPontas": {
+    "scope": "Cores/processos de teste locais, identidades sintéticas; handshake nas duas pontas e contadores de áudio do mesmo flow",
+    "flowsCorrespondentes": 5,
+    "exemplos": [
+      {
+        "flow": "70de91da2bc4",
+        "sourceSession": "61c0f9d35466",
+        "targetSession": "5ad87bb719f0",
+        "outboundLocalStream": "12D3KooWRt-1-29",
+        "inboundLocalStream": "12D3KooWHe-1-46"
+      },
+      {
+        "flow": "a363941a34d5",
+        "sourceSession": "fc2df57d1c9e",
+        "targetSession": "61c0f9d35466",
+        "outboundLocalStream": "12D3KooWHe-3-58",
+        "inboundLocalStream": "12D3KooWEE-3-66"
+      },
+      {
+        "flow": "a8f8d6ac4ccf",
+        "sourceSession": "fc2df57d1c9e",
+        "targetSession": "5ad87bb719f0",
+        "outboundLocalStream": "12D3KooWRt-1-16",
+        "inboundLocalStream": "12D3KooWEE-2-44"
+      }
+    ]
+  }
+}

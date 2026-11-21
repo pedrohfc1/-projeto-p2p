@@ -1,0 +1,450 @@
+{
+  "version": "0.9.1",
+  "date": "2026-11-05",
+  "distribution": "private beta, no public release",
+  "scope": "audio/player/performance hotfix; full H264 hardware1080p60 goal NOT delivered",
+  "comparison": {
+    "gitBase": "c4e90b2 (v0.6.0)",
+    "releaseSources": {
+      "0.8.2:frontend/src/Voice.tsx": "8171457712c539942c8ad9999dd030536490ab6b8d18f57ddd8022f06aa30761",
+      "0.8.2:frontend/src/Screen.tsx": "35d6e81d92d6feba3eca972adfec291ff01e3bc445ddc7853cf795b857428419",
+      "0.8.2:internal/voice/screen_pipe.go": "ae2e24b2cd42bc2c0fb76a5f0d84c8cd7018590f6b6d27507d5bc481d2cb7955",
+      "0.9.0:frontend/src/Voice.tsx": "ef3427dd9b7856caa738299516def24aac50097610890797cc112edece3b0bdf",
+      "0.9.0:frontend/src/Screen.tsx": "2aa403b3426e0e79649ce7fea613f317794624c9df0061caaf3fa232000c322e",
+      "0.9.0:internal/voice/screen_pipe.go": "ae2e24b2cd42bc2c0fb76a5f0d84c8cd7018590f6b6d27507d5bc481d2cb7955"
+    },
+    "limitation": "Later local versions are uncommitted; no intermediate commits available for bisect. Root observations are code/automated reproductions, not reproduction of the users physical devices."
+  },
+  "tests": {
+    "frontend": "44 passed; TypeScript/Vite passed. Slots without stream IDs, shared AudioContext lifetime, suspended-context timeout, capture profiles, persistent watch status and counter telemetry covered.",
+    "go": "go test ./... and go vet ./... passed",
+    "voice": "2/3/4/6 independent production processes with generated Opus, departure/rejoin and two-person real EasyTier reconnection/mute/deaf tests passed; not physical playback",
+    "communities": "three real local backend processes over loopback: signed admission/roles/text/sync/restart/revocation passed",
+    "chat": "three real integrated EasyTier processes: signed activities, own-only edit/delete, replies/reactions, offline/restart recovery and original chat preserved",
+    "cli": "Windows/Linux compiled; three-process CLI smoke passed",
+    "security": "version/actionlint passed; govulncheck0 reachable/0 imported-package,8 module-only; Rust gate unchanged",
+    "browserPCM": "NOT RUN: Edge sandbox startup failed with both default temporary profile and workspace temporary profile. No real browser PCM playback/audibility claimed.",
+    "short1080": "generated distinct VP8 1920x1080 clip sent with60FPS target, real encrypted EasyTier/libp2p and simultaneous Opus/chat; decoded using test-only FFmpeg; reconnect, two publishers and cleanup passed. Whole-window51.48 completeFPS, steady58.57FPS; not captured/rendered60FPS.",
+    "finalTenMinutes": "PASS:634.00s full test,600.3s continuous generated media, then independent publishers/reconnect/visibility expiry/cleanup. Loop replay fixture; not physical capture/encoder/render60FPS.",
+    "lastConnectionStateFix": "On each new authenticated screen pipe, confirmed status/wants/accepted are reset rather than inheriting the old pipe. This final state-only refinement was checked separately by two full short integration runs (43.16s and42.05s), plus final Go/vet; it does not change steady-state media transport used for ten-minute measurements.",
+    "installer": "Windows desktop0.9.1 with prompt-v1 user-consent policy and exact private installer payload/helper/licenses/full LGPL source/uninstaller/WebView2 validated. Whole installation/upgrade NOT performed.",
+    "audit": "Version/actionlint/source/gitleaks/diff/PE checks accompany delivery; no Packet.dll/Npcap imports in final app/helper, pinned audited helper. No public release."
+  },
+  "pending": [
+    "physical microphone/playback/two real PCs and separate networks",
+    "native WebView2 capture/encoder/render60FPS and hardware acceleration",
+    "native player navigation/fullscreen/minimize/tray",
+    "full installation/upgrade and Linux desktop",
+    "whole app plus WebView2 plus helper resource measurement",
+    "H264/NVENC/AMF/QuickSync path NOT implemented",
+    "direct Windows Graphics Capture path NOT implemented; existing getDisplayMedia retained",
+    "UDP/unreliable video transport NOT implemented; TCP HOL persists"
+  ],
+  "limits": [
+    "VP8 fallback/transport retained; update all participants for1080p profiles",
+    "one watched decoder/app; five viewers/publisher",
+    "2 encoded frames queued;16 frame and512KiB unacked window; frame384KiB;1920x1080 decoded surface",
+    "150ms pre-send age,200ms write timeout;200ms receiver relative-age cutoff; cannot cancel TCP retransmissions",
+    "2–12Mbps configurable TOTAL fanout limit; actual rate adapts lower",
+    "source/encoder/render actual FPS absent means unknown, never configured FPS",
+    "Rust gate/DHT quarantine unchanged; no public distribution"
+  ],
+  "benchmarks": {
+    "shortGenerated1080": {
+      "audioFrames": [
+        227,
+        227
+      ],
+      "backendA": {
+        "heapBytes": 33130744,
+        "rssBytes": 129310720,
+        "cpuPercent": 13.406735913736458,
+        "cpuSecs": 1.59375,
+        "goroutines": 284,
+        "uploadBytes": 4016034,
+        "downloadBytes": 48674,
+        "uploadBps": 874797.0261434156,
+        "downloadBps": 4523.143936828847,
+        "connections": 1,
+        "streams": 2,
+        "lastConnectMs": null,
+        "pingMs": null,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+      },
+      "backendB": {
+        "heapBytes": 33142952,
+        "rssBytes": 129310720,
+        "cpuPercent": 13.748954776959946,
+        "cpuSecs": 1.609375,
+        "goroutines": 284,
+        "uploadBytes": 48729,
+        "downloadBytes": 4016034,
+        "uploadBps": 4325.311181193383,
+        "downloadBps": 874698.8236460288,
+        "connections": 1,
+        "streams": 2,
+        "lastConnectMs": 4323.704,
+        "pingMs": null,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+      },
+      "deliveryMaxMs": 6.2602,
+      "deliveryMeanMs": 1.097826,
+      "fixtureHeight": 1080,
+      "fixtureWidth": 1920,
+      "latencyScope": "encoded RTP send to complete received VP8; excludes physical capture, browser encoder and display",
+      "receivedCompleteFPS": 51.47608668493804,
+      "scope": "same Go test process, two production cores, generated VP8 and Opus, actual EasyTier/libp2p; excludes WebView/helper and physical capture",
+      "screenA": {
+        "dropReasons": {
+          "bandwidthOrAudioPriority": 0,
+          "keyframeWait": 0,
+          "lateOrUnauthorized": 0,
+          "queue": 0,
+          "window": 0
+        },
+        "participants": [
+          "12D3KooWNBTwUCpChPomk8AJo5Pz3WeCMuesM6o5SZ5HBR2Ac18r",
+          "12D3KooWPu7YjXkxi6JuhMCoqZtkczP64S7csa4emL6DxwyENfua"
+        ],
+        "roundTripMs": 1.0188,
+        "active": true,
+        "publishing": true,
+        "playing": "",
+        "watching": "",
+        "viewers": 1,
+        "bitrate": 12000000,
+        "maxViewers": 5,
+        "framesIn": 0,
+        "framesOut": 234,
+        "dropped": 0,
+        "bytesIn": 0,
+        "bytesOut": 3956291,
+        "peers": [
+          {
+            "statusKnown": true,
+            "id": "12D3KooWPu7YjXkxi6JuhMCoqZtkczP64S7csa4emL6DxwyENfua",
+            "name": "b",
+            "sharing": false,
+            "connected": true,
+            "accepted": false
+          }
+        ],
+        "error": ""
+      },
+      "screenB": {
+        "dropReasons": {
+          "bandwidthOrAudioPriority": 0,
+          "keyframeWait": 0,
+          "lateOrUnauthorized": 0,
+          "queue": 0,
+          "window": 0
+        },
+        "participants": [
+          "12D3KooWNBTwUCpChPomk8AJo5Pz3WeCMuesM6o5SZ5HBR2Ac18r",
+          "12D3KooWPu7YjXkxi6JuhMCoqZtkczP64S7csa4emL6DxwyENfua"
+        ],
+        "roundTripMs": 0,
+        "active": true,
+        "publishing": false,
+        "playing": "12D3KooWNBTwUCpChPomk8AJo5Pz3WeCMuesM6o5SZ5HBR2Ac18r",
+        "watching": "12D3KooWNBTwUCpChPomk8AJo5Pz3WeCMuesM6o5SZ5HBR2Ac18r",
+        "viewers": 0,
+        "bitrate": 1500000,
+        "maxViewers": 5,
+        "framesIn": 234,
+        "framesOut": 0,
+        "dropped": 0,
+        "bytesIn": 3956291,
+        "bytesOut": 0,
+        "peers": [
+          {
+            "statusKnown": true,
+            "id": "12D3KooWNBTwUCpChPomk8AJo5Pz3WeCMuesM6o5SZ5HBR2Ac18r",
+            "name": "a",
+            "sharing": true,
+            "connected": true,
+            "accepted": true
+          }
+        ],
+        "error": ""
+      },
+      "seconds": 4.5458001,
+      "steadyCompleteFPS": 58.5743481309818,
+      "targetSendFPS": 60,
+      "videoFrames": 234,
+      "voiceOnlyA": {
+        "heapBytes": 10259784,
+        "rssBytes": 90136576,
+        "cpuPercent": 3.1214736711936526,
+        "cpuSecs": 0.5625,
+        "goroutines": 176,
+        "uploadBytes": 17360,
+        "downloadBytes": 12434,
+        "uploadBps": 2662.991618368729,
+        "downloadBps": 2662.991618368729,
+        "connections": 1,
+        "streams": 1,
+        "lastConnectMs": null,
+        "pingMs": null,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+      },
+      "voiceOnlyB": {
+        "heapBytes": 10271896,
+        "rssBytes": 90136576,
+        "cpuPercent": 3.123140794285162,
+        "cpuSecs": 0.5625,
+        "goroutines": 176,
+        "uploadBytes": 12434,
+        "downloadBytes": 17360,
+        "uploadBps": 2664.413874420557,
+        "downloadBps": 2664.413874420557,
+        "connections": 1,
+        "streams": 1,
+        "lastConnectMs": 4323.704,
+        "pingMs": null,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+      }
+    },
+    "scope": "generated pre-encoded VP8 and Opus; actual local encrypted EasyTier/libp2p; excludes physical capture/browser encoder/render/WebView2/helper. Steady FPS and whole measurement FPS both retained, no hardware60FPS claim.",
+    "earlier720Soak": {
+      "audioFrames": [
+        29999,
+        29999
+      ],
+      "backendA": {
+        "heapBytes": 12155304,
+        "rssBytes": 101703680,
+        "cpuPercent": 7.135410892930019,
+        "cpuSecs": 44,
+        "goroutines": 284,
+        "uploadBytes": 51110529,
+        "downloadBytes": 2174420,
+        "uploadBps": 84565.4382391329,
+        "downloadBps": 3531.6521423048084,
+        "connections": 1,
+        "streams": 2,
+        "lastConnectMs": null,
+        "pingMs": null,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+      },
+      "backendB": {
+        "heapBytes": 12173184,
+        "rssBytes": 101703680,
+        "cpuPercent": 7.135410892930019,
+        "cpuSecs": 44,
+        "goroutines": 284,
+        "uploadBytes": 2174420,
+        "downloadBytes": 51110289,
+        "uploadBps": 3531.6521423048084,
+        "downloadBps": 84565.4382391329,
+        "connections": 1,
+        "streams": 2,
+        "lastConnectMs": 3919.823,
+        "pingMs": null,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+      },
+      "generatedFramesReceived": 17990,
+      "generatedFramesSent": 18000,
+      "realDeliveryFPS": 29.983309071839077,
+      "scope": "same machine production cores and real encrypted EasyTier; looped prerecorded VP8, generated Opus, no capture/encoder/render/physical hardware or two-house claim",
+      "screenA": {
+        "roundTripMs": 0.547,
+        "active": true,
+        "publishing": true,
+        "playing": "",
+        "watching": "",
+        "viewers": 1,
+        "bitrate": 3000000,
+        "maxViewers": 5,
+        "framesIn": 0,
+        "framesOut": 18017,
+        "dropped": 0,
+        "bytesIn": 0,
+        "bytesOut": 48841335,
+        "peers": [
+          {
+            "statusKnown": true,
+            "id": "12D3KooWCb5aAhQoCjqvCeA6n7MEEfGS2VppDPEiuqDcwRMUzjSr",
+            "name": "b",
+            "sharing": false,
+            "connected": true,
+            "accepted": false
+          }
+        ],
+        "error": ""
+      },
+      "screenB": {
+        "roundTripMs": 0,
+        "active": true,
+        "publishing": false,
+        "playing": "12D3KooWMLWhYSjG1yqnqnmFA8uX71J2WvfDAPetYU63aHSP63Fv",
+        "watching": "12D3KooWMLWhYSjG1yqnqnmFA8uX71J2WvfDAPetYU63aHSP63Fv",
+        "viewers": 0,
+        "bitrate": 1500000,
+        "maxViewers": 5,
+        "framesIn": 18017,
+        "framesOut": 0,
+        "dropped": 0,
+        "bytesIn": 48841335,
+        "bytesOut": 0,
+        "peers": [
+          {
+            "statusKnown": true,
+            "id": "12D3KooWMLWhYSjG1yqnqnmFA8uX71J2WvfDAPetYU63aHSP63Fv",
+            "name": "a",
+            "sharing": true,
+            "connected": true,
+            "accepted": true
+          }
+        ],
+        "error": ""
+      },
+      "seconds": 600.0004855
+    },
+    "earlier720SoakNote": "before final queue/diagnostic refinements; not final high-rate capture validation",
+    "finalGenerated1080TenMinutes": {
+      "audioFrames": [
+        30014,
+        30015
+      ],
+      "backendA": {
+        "heapBytes": 14901848,
+        "rssBytes": 112054272,
+        "cpuPercent": 14.802470985432317,
+        "cpuSecs": 90.90625,
+        "goroutines": 284,
+        "uploadBytes": 607461408,
+        "downloadBytes": 2332823,
+        "uploadBps": 1005067.2564553204,
+        "downloadBps": 3791.9313189114355,
+        "connections": 1,
+        "streams": 2,
+        "lastConnectMs": null,
+        "pingMs": null,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+      },
+      "backendB": {
+        "heapBytes": 14914072,
+        "rssBytes": 112054272,
+        "cpuPercent": 14.802470985432317,
+        "cpuSecs": 90.90625,
+        "goroutines": 284,
+        "uploadBytes": 2333006,
+        "downloadBytes": 607461118,
+        "uploadBps": 3792.2361660016086,
+        "downloadBps": 1005067.1731637657,
+        "connections": 1,
+        "streams": 2,
+        "lastConnectMs": 3879.306,
+        "pingMs": null,
+        "packetLoss": null,
+        "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+        "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+      },
+      "generatedFramesReceived": 35353,
+      "generatedFramesSent": 35999,
+      "payloadMbps": 8.009945823223143,
+      "realDeliveryFPS": 58.892126660578995,
+      "scope": "same machine production cores and real encrypted EasyTier; looped prerecorded VP8, generated Opus, no capture/encoder/render/physical hardware or two-house claim",
+      "screenA": {
+        "dropReasons": {
+          "bandwidthOrAudioPriority": 0,
+          "keyframeWait": 0,
+          "lateOrUnauthorized": 0,
+          "queue": 0,
+          "window": 0
+        },
+        "participants": [
+          "12D3KooWRDRYJiSwZ8QKGtGnX9T6j2humrakeJyqNbh3UNYqY7Lf",
+          "12D3KooWER5SrxpHn3hxKWNfGpvBUHSXkLyiZNYeRaskLWZEtpc6"
+        ],
+        "roundTripMs": 0.5046,
+        "active": true,
+        "publishing": true,
+        "playing": "",
+        "watching": "",
+        "viewers": 1,
+        "bitrate": 12000000,
+        "maxViewers": 5,
+        "framesIn": 0,
+        "framesOut": 35592,
+        "dropped": 0,
+        "bytesIn": 0,
+        "bytesOut": 605121617,
+        "peers": [
+          {
+            "statusKnown": true,
+            "id": "12D3KooWER5SrxpHn3hxKWNfGpvBUHSXkLyiZNYeRaskLWZEtpc6",
+            "name": "b",
+            "sharing": false,
+            "connected": true,
+            "accepted": false
+          }
+        ],
+        "error": ""
+      },
+      "screenB": {
+        "dropReasons": {
+          "bandwidthOrAudioPriority": 0,
+          "keyframeWait": 0,
+          "lateOrUnauthorized": 0,
+          "queue": 0,
+          "window": 0
+        },
+        "participants": [
+          "12D3KooWRDRYJiSwZ8QKGtGnX9T6j2humrakeJyqNbh3UNYqY7Lf",
+          "12D3KooWER5SrxpHn3hxKWNfGpvBUHSXkLyiZNYeRaskLWZEtpc6"
+        ],
+        "roundTripMs": 0,
+        "active": true,
+        "publishing": false,
+        "playing": "12D3KooWRDRYJiSwZ8QKGtGnX9T6j2humrakeJyqNbh3UNYqY7Lf",
+        "watching": "12D3KooWRDRYJiSwZ8QKGtGnX9T6j2humrakeJyqNbh3UNYqY7Lf",
+        "viewers": 0,
+        "bitrate": 1500000,
+        "maxViewers": 5,
+        "framesIn": 35592,
+        "framesOut": 0,
+        "dropped": 0,
+        "bytesIn": 605121617,
+        "bytesOut": 0,
+        "peers": [
+          {
+            "statusKnown": true,
+            "id": "12D3KooWRDRYJiSwZ8QKGtGnX9T6j2humrakeJyqNbh3UNYqY7Lf",
+            "name": "a",
+            "sharing": true,
+            "connected": true,
+            "accepted": true
+          }
+        ],
+        "error": ""
+      },
+      "seconds": 600.3009571,
+      "sourceToReceiverFrameGap": 646,
+      "frameGapPercent": 1.7944942915080975,
+      "gapScope": "end-to-end generated frame count gap, not a measured network packet-loss percentage; application pipe drop counters cover a narrower stage"
+    }
+  },
+  "testHarnessFinding": {
+    "earlierRun": "600s high-rate media phase passed with continuous audio; overall run failed at the subsequent synthetic-source reconnect check before viewer subscription had been acknowledged",
+    "correction": "The test now waits for connected and confirmed viewer subscription and both audio directions before replaying a keyframe. The fixture does not implement the real browser encoder response to PLI. No production exception suppressed.",
+    "retest": "Two short runs passed after corrected test readiness, then the whole ten-minute run passed; two further complete short runs passed with explicit new-pipe status reset. No failed run represented as passing."
+  },
+  "appSHA256": "9998b46358a1f84c895a1b46dd9a8146cd5a5d1a0c9000374e26fe7327d99392",
+  "setupSHA256": "d659000a19a7e5e70b5b01f60b99f10325a398df52e9dc8a7534f8e9f9389aa8"
+}

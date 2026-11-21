@@ -1,0 +1,172 @@
+{
+  "version": "0.9.0",
+  "date": "2026-11-05",
+  "distribution": "private beta; no public release",
+  "tests": {
+    "frontend": "38 passed; TypeScript/Vite passed",
+    "go": "Final go test ./... and go vet ./... passed after correcting malformed JSON time metadata; no suppression.",
+    "social": "three independent production backends over integrated EasyTier on same PC; signed own-only edit/delete, author-qualified collision rejection, reply/reaction, offline edit/restart recovery and original chat preservation",
+    "communities": "three independent real processes: admissions, roles, sync, restart, deduplication and revocation passed",
+    "media": "generated VP8 decoded over real encrypted EasyTier; simultaneous Opus/chat, preview isolation, authenticated media, reconnect, revocation, visibility lease and cleanup passed; not physical devices",
+    "build": "Windows desktop version 0.9.0 with prompt-v1 consent policy; exact setup payload/helper/licenses/corresponding source validated. Windows/Linux CLI builds and three-process CLI smoke passed; complete installation NOT performed.",
+    "audit": "Version, actionlint, diff check, gitleaks and PE imports passed; final executable and helper have no Packet.dll/Npcap imports. govulncheck: 0 reachable/0 imported-package, 8 module-only. Existing Rust gate remains.",
+    "simultaneousPublishers": "Two production cores publish generated VP8 at the same time over real encrypted EasyTier; each explicitly watches the other; reverse delivery and simultaneous publication asserted; passed. Does not test physical screen or browser encoder.",
+    "voiceGroup": "2, 3, 4 and 6 independent production processes over real integrated EasyTier on one PC, bidirectional generated Opus, participant departure/rejoin and preserved slots; six-person 10-second generated-media soak; passed. Not physical devices/two houses.",
+    "ownerRecovery": "Real three peers over EasyTier: restart/change endpoint, offline-owner authorized text/voice, revoked access, reconnection without recreating community; passed (112.96 seconds)."
+  },
+  "pending": [
+    "physical microphone/screen and native WebView2 UI",
+    "two computers in different networks/CGNAT",
+    "native notification delivery and OS settings",
+    "simultaneous physical publishers/encoder suspension on WebView2",
+    "whole app plus WebView2 plus helper resource profiling",
+    "complete installation/upgrade, Linux desktop"
+  ],
+  "limits": [
+    "one watched decoder per app; up to five viewers per publisher",
+    "logical deletion preserves immutable source history; old clients do not render new actions",
+    "current authorization epoch required for activity replay",
+    "5000 events per context / combined 32 MiB journal and projections",
+    "latest 100 replies and 300 requested message projections",
+    "native notifications opt-in, OS can suppress; private preview disabled by default",
+    "Rust advisories unresolved and legacy DHT quarantined; public distribution blocked"
+  ],
+  "localMediaMetrics": {
+    "audioFrames": [
+      242,
+      241
+    ],
+    "backendA": {
+      "heapBytes": 7833240,
+      "rssBytes": 91824128,
+      "cpuPercent": 18.47038251739643,
+      "cpuSecs": 2.4375,
+      "goroutines": 284,
+      "uploadBytes": 387114,
+      "downloadBytes": 47978,
+      "uploadBps": 72156.69446091556,
+      "downloadBps": 4135.084429635002,
+      "connections": 1,
+      "streams": 2,
+      "lastConnectMs": null,
+      "pingMs": null,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+    },
+    "backendB": {
+      "heapBytes": 7845448,
+      "rssBytes": 91824128,
+      "cpuPercent": 18.468454821602656,
+      "cpuSecs": 2.4375,
+      "goroutines": 284,
+      "uploadBytes": 48033,
+      "downloadBytes": 387114,
+      "uploadBps": 4134.652863864538,
+      "downloadBps": 72149.16369341392,
+      "connections": 1,
+      "streams": 2,
+      "lastConnectMs": 4013.483,
+      "pingMs": null,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+    },
+    "deliveryMaxMs": 1.6639,
+    "deliveryMeanMs": 0.179279,
+    "latencyScope": "encoded RTP send to complete received VP8; excludes physical capture, browser encoder and display",
+    "scope": "same Go test process, two production cores, generated VP8 and Opus, actual EasyTier/libp2p; excludes WebView/helper and physical capture",
+    "screenA": {
+      "roundTripMs": 0,
+      "active": true,
+      "publishing": true,
+      "playing": "",
+      "watching": "",
+      "viewers": 1,
+      "bitrate": 3000000,
+      "maxViewers": 5,
+      "framesIn": 0,
+      "framesOut": 120,
+      "dropped": 0,
+      "bytesIn": 0,
+      "bytesOut": 327503,
+      "peers": [
+        {
+          "id": "12D3KooWNiQGDZ3FjCKEHJ6qknAJzQpD4sfazCB4qyhVynx1arMr",
+          "name": "b",
+          "sharing": false,
+          "connected": true,
+          "accepted": false
+        }
+      ],
+      "error": ""
+    },
+    "screenB": {
+      "roundTripMs": 0,
+      "active": true,
+      "publishing": false,
+      "playing": "12D3KooWGtNat3uNk4zZvbzUHGECGhFN53z8WUVfwkpwSh5CxYXe",
+      "watching": "12D3KooWGtNat3uNk4zZvbzUHGECGhFN53z8WUVfwkpwSh5CxYXe",
+      "viewers": 0,
+      "bitrate": 1500000,
+      "maxViewers": 5,
+      "framesIn": 120,
+      "framesOut": 120,
+      "dropped": 0,
+      "bytesIn": 327503,
+      "bytesOut": 600,
+      "peers": [
+        {
+          "id": "12D3KooWGtNat3uNk4zZvbzUHGECGhFN53z8WUVfwkpwSh5CxYXe",
+          "name": "a",
+          "sharing": true,
+          "connected": true,
+          "accepted": true
+        }
+      ],
+      "error": ""
+    },
+    "seconds": 4.8224121,
+    "videoFrames": 120,
+    "voiceOnlyA": {
+      "heapBytes": 3606944,
+      "rssBytes": 83718144,
+      "cpuPercent": 12.487240537618662,
+      "cpuSecs": 0.921875,
+      "goroutines": 176,
+      "uploadBytes": 17359,
+      "downloadBytes": 12433,
+      "uploadBps": 2663.278661863308,
+      "downloadBps": 2663.278661863308,
+      "connections": 1,
+      "streams": 1,
+      "lastConnectMs": null,
+      "pingMs": null,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+    },
+    "voiceOnlyB": {
+      "heapBytes": 3619056,
+      "rssBytes": 83718144,
+      "cpuPercent": 12.495803909047341,
+      "cpuSecs": 0.921875,
+      "goroutines": 176,
+      "uploadBytes": 12433,
+      "downloadBytes": 17359,
+      "uploadBps": 2665.105057721617,
+      "downloadBps": 2665.105057721617,
+      "connections": 1,
+      "streams": 1,
+      "lastConnectMs": 4013.483,
+      "pingMs": null,
+      "packetLoss": null,
+      "packetLossReason": "não mensurada: transporte TCP não fornece perda de pacotes UDP",
+      "scope": "processo Go atual; não inclui processos WebView2 separados; CPU 100% equivale a um núcleo lógico"
+    }
+  },
+  "metricsScope": "short generated-media test; backend Go only, excludes separate WebView2/helper; not hardware performance claim",
+  "appSHA256": "0697fd84f11b8c3a7f14916d81db649e709c869212c448d114950e835d8ec43c",
+  "setupSHA256": "6d354ebabb014b7471915e5d4f281d2b5f173a3c8bd55e13c9b32bc7b1491023",
+  "helperSHA256": "d25540cadfb76697c53a44a9d981fc36e5e56eed09dffef0f4a86c6ff4674a32"
+}

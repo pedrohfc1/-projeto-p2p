@@ -1,0 +1,25 @@
+import React,{createContext,useContext,useEffect,useRef,useState,useCallback} from 'react';
+import {createPortal} from 'react-dom';
+import {X,ChevronDown} from 'lucide-react';
+import {settingsGroups,settingsSections,validSettingsSection,settingsTransition,type SettingsSection,type SettingsState} from './settingsModel';
+type SettingsContextValue=SettingsState&{host:HTMLElement|null;setHost:(host:HTMLElement|null)=>void;restoreFocus:()=>void;open:(section?:SettingsSection,target?:string)=>void;close:()=>void};
+const Context=createContext<SettingsContextValue|null>(null);
+export function useSettings(){const value=useContext(Context);if(!value)throw Error('Central de configurações indisponível');return value}
+export function SettingsProvider({children}:{children:React.ReactNode}){
+ const opener=useRef<HTMLElement|null>(null);
+ const restoreFocus=useCallback(()=>{const node=opener.current?.isConnected?opener.current:document.querySelector<HTMLElement>('[data-settings-entry]');node?.focus()},[]);
+ const [state,setState]=useState<SettingsState>(()=>{let section:SettingsSection='account';try{section=validSettingsSection(localStorage.getItem('peetwopee.settings.section'))}catch{}return {visible:false,section,target:''}}),[host,setHost]=useState<HTMLElement|null>(null);
+ const open=useCallback((section?:SettingsSection,target?:string)=>setState(s=>{if(!s.visible&&typeof document!=='undefined')opener.current=document.activeElement as HTMLElement;return settingsTransition(s,{type:'open',section,target})}),[]),close=useCallback(()=>setState(s=>settingsTransition(s,{type:'close'})),[]);
+ useEffect(()=>{try{localStorage.setItem('peetwopee.settings.section',state.section)}catch{}},[state.section]);
+ return <Context.Provider value={{...state,host,setHost,open,close,restoreFocus}}>{children}</Context.Provider>
+}
+// The owners of media remain mounted. Only their form controls are portaled.
+export function SettingsSurface({section,children,target}:{section:SettingsSection;children:React.ReactNode;target?:string}){const s=useSettings();return s.visible&&s.section===section&&(!target||s.target===target)&&s.host?createPortal(children,s.host):null}
+export function SettingsCenter(){const s=useSettings();
+ useEffect(()=>{if(!s.visible)return;const root=document.getElementById('root');const old=root?.inert;if(root)root.inert=true;return()=>{if(root)root.inert=old||false;s.restoreFocus()}},[s.visible]);
+ if(!s.visible)return null;const layout=<SettingsShell section={s.section} onSelect={s.open} onClose={s.close} hostRef={s.setHost}/>;
+ return typeof document==='undefined'?layout:createPortal(layout,document.body)
+}
+export function SettingsShell({section,onSelect,onClose,hostRef}:{section:SettingsSection;onSelect:(section:SettingsSection)=>void;onClose:()=>void;hostRef?:(node:HTMLDivElement|null)=>void}){const nav=useRef<HTMLElement|null>(null);const current=settingsSections.find(p=>p.id===section)!; const layout=<div className="modal-overlay settings-overlay"><section className="modal settings-center" role="dialog" aria-modal="true" aria-label="Central de configurações"><header className="settings-top"><div><span className="eyebrow">PEETWOPEE · SEU ESPAÇO</span><h1>Configurações</h1></div><button className="close icon" title="Fechar configurações (Esc)" aria-label="Fechar configurações" onClick={onClose}><X size={22}/></button></header><div className="settings-layout"><nav ref={nav} className="settings-navigation" role="tablist" aria-label="Seções de configurações" aria-orientation="vertical" onKeyDown={e=>{if(!['ArrowUp','ArrowDown','Home','End'].includes(e.key))return;const items=[...(nav.current?.querySelectorAll<HTMLButtonElement>('[role=tab]')||[])].filter(n=>n.getClientRects().length);if(!items.length)return;const index=items.indexOf(document.activeElement as HTMLButtonElement);e.preventDefault();const next=items[e.key==='Home'?0:e.key==='End'?items.length-1:(index+(e.key==='ArrowDown'?1:-1)+items.length)%items.length];next.focus();next.click()}}>{settingsGroups.map(group=><details className="settings-nav-group" key={group.label} open><summary>{group.label}<ChevronDown size={12}/></summary>{group.items.map(([id,label])=><button key={id} type="button" role="tab" id={'setting-tab-'+id} aria-controls={'setting-panel-'+id} aria-selected={section===id} tabIndex={section===id?0:-1} className={section===id?'selected':''} onClick={()=>onSelect(id)}>{label}</button>)}</details>)}</nav><div className="settings-body" role="tabpanel" id={'setting-panel-'+section} aria-labelledby={'setting-tab-'+section} key={section}><header className="settings-section-heading"><span className="eyebrow">PREFERÊNCIAS</span><h2>{current.label}</h2></header>{settingsGroups[1].items.some(([id])=>id===section)&&<div className="settings-media-tabs" aria-label="Voz e vídeo">{settingsGroups[1].items.map(([id,label])=><button key={id} aria-current={id===section?'page':undefined} onClick={()=>onSelect(id)}>{label}</button>)}</div>}<div className="settings-surface" ref={hostRef}/></div></div></section></div>;
+ return layout
+}

@@ -8,7 +8,9 @@ import (
 	"errors"
 	libnet "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	ma "github.com/multiformats/go-multiaddr"
 	"io"
 	"projetop2p/internal/community"
 	"projetop2p/internal/security"
@@ -87,8 +89,46 @@ func (n *Node) CommunityRequest(ctx context.Context, id string, addresses []stri
 		if e != nil || p.ID != pid {
 			return response, errors.New("invalid owner endpoint")
 		}
-		info.Addrs = append(info.Addrs, p.Addrs...)
+		for _, a := range p.Addrs {
+			if n.communityEndpointAllowed(a) {
+				info.Addrs = append(info.Addrs, a)
+			}
+		}
 	}
+	// Prefer current signed libp2p records over accumulated permanent addresses.
+	// Noise still authenticates the target; a record only supplies dial candidates.
+	var candidates []ma.Multiaddr
+	if book, ok := peerstore.GetCertifiedAddrBook(n.Host.Peerstore()); ok {
+		if envelope := book.GetPeerRecord(pid); envelope != nil {
+			if value, err := envelope.Record(); err == nil {
+				if record, ok := value.(*peer.PeerRecord); ok && record.PeerID == pid {
+					candidates = record.Addrs
+				}
+			}
+		}
+	}
+	if len(candidates) == 0 && len(info.Addrs) == 0 {
+		candidates = n.Host.Peerstore().Addrs(pid)
+	}
+	seen := map[string]bool{}
+	filtered := []ma.Multiaddr{}
+	for _, a := range append(info.Addrs, candidates...) {
+		if len(filtered) >= 16 {
+			break
+		}
+		if !seen[a.String()] && n.communityEndpointAllowed(a) {
+			filtered = append(filtered, a)
+			seen[a.String()] = true
+		}
+	}
+	info.Addrs = filtered
+	if !n.integrated && len(info.Addrs) == 0 && len(n.Host.Network().ConnsToPeer(pid)) == 0 {
+		return response, errors.New("invalid_address: nenhum endpoint remoto compativel; loopback/LAN de outra rede nao sao rotas de internet")
+	}
+	n.mu.Lock()
+	n.known[pid] = info
+	n.mu.Unlock()
+	n.Host.Peerstore().ClearAddrs(pid)
 	if e = n.Connect(ctx, info); e != nil {
 		return response, e
 	}

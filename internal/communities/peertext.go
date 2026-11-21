@@ -2,6 +2,7 @@ package communities
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"projetop2p/internal/community"
 	"projetop2p/internal/invite"
@@ -59,10 +60,40 @@ func (s *Service) rememberPeer(r localdb.CommunityRecord, raw string) error {
 	if s.routes[r.ID] == nil {
 		s.routes[r.ID] = map[string]peerRoute{}
 	}
-	s.routes[r.ID][i.ID] = peerRoute{raw: raw, expires: time.Now().Add(10 * time.Minute)}
+	if old, ok := s.routes[r.ID][i.ID]; ok {
+		if old.raw == raw || old.expires.After(time.Unix(i.Expires, 0)) {
+			return nil
+		}
+	}
+	s.routes[r.ID][i.ID] = peerRoute{raw: raw, expires: time.Unix(i.Expires, 0)}
+	saved, _ := s.db.CommunityRoutes(r.ID)
+	for id, entry := range saved {
+		ticket, err := invite.Parse(entry, time.Now())
+		if err != nil || r.State.Role(id) == "" || ticket.ID != id {
+			delete(saved, id)
+		}
+	}
+	saved[i.ID] = raw
+	if e = s.db.SaveCommunityRoutes(r.ID, saved); e != nil {
+		return e
+	}
+	if i.ID == r.Owner {
+		r.Scope = iscope
+		r.Addresses = i.Addresses
+		return s.db.TrackCommunity(r)
+	}
 	return nil
 }
 func (s *Service) peerRoutes(r localdb.CommunityRecord) map[string]string {
+	s.peerMu.Lock()
+	empty := len(s.routes[r.ID]) == 0
+	s.peerMu.Unlock()
+	if empty {
+		saved, _ := s.db.CommunityRoutes(r.ID)
+		for _, raw := range saved {
+			_ = s.rememberPeer(r, raw)
+		}
+	}
 	s.peerMu.Lock()
 	defer s.peerMu.Unlock()
 	out := map[string]string{}
@@ -86,10 +117,17 @@ func (s *Service) peerHandle(remote string, req community.Request) community.Res
 	if r.State.Sequence == 0 || r.Denied || r.State.Role(s.id) == "" || r.State.Role(remote) == "" {
 		return fail(errors.New("current membership required"))
 	}
-	if req.Method == "peer.directory" {
-		if r.Owner != s.id {
-			return fail(errors.New("not owner directory"))
+	if req.PeerInvite != "" {
+		ticket, e := invite.Parse(req.PeerInvite, time.Now())
+		if e != nil || ticket.ID != remote {
+			return fail(errors.New("peer endpoint identity mismatch"))
 		}
+		if e = s.rememberPeer(r, req.PeerInvite); e != nil {
+			return fail(e)
+		}
+	}
+	if req.Method == "peer.directory" {
+
 		i, e := invite.Parse(req.PeerInvite, time.Now())
 		if e != nil || i.ID != remote {
 			return fail(errors.New("authenticated peer route required"))
@@ -127,11 +165,44 @@ func (s *Service) peerHandle(remote string, req community.Request) community.Res
 	if e != nil {
 		return fail(e)
 	}
-	res := community.Response{Commits: []community.Commit{}, PeerTexts: []community.PeerTextEntry{}, PeerCursor: req.After}
+	commits, e := s.db.CommunityEvents(r.ID, req.ControlAfter, 4)
+	if e != nil {
+		return fail(e)
+	}
+	res := community.Response{Commits: commits, PeerTexts: []community.PeerTextEntry{}, PeerCursor: req.After}
+	if own, e := s.selfRoute(); e == nil {
+		_ = s.rememberPeer(r, own)
+	}
+	for _, raw := range s.peerRoutes(r) {
+		if len(res.PeerInvites) < 16 {
+			res.PeerInvites = append(res.PeerInvites, raw)
+		}
+	}
+	for {
+		b, _ := json.Marshal(res)
+		if len(b) < community.MaxResponse/2 || len(res.PeerInvites) == 0 {
+			break
+		}
+		res.PeerInvites = res.PeerInvites[:len(res.PeerInvites)-1]
+	}
+	for {
+		b, _ := json.Marshal(res)
+		if len(b) < community.MaxResponse*3/4 || len(res.Commits) == 0 {
+			break
+		}
+		res.Commits = res.Commits[:len(res.Commits)-1]
+	}
 	for _, entry := range entries {
+		previous := res.PeerCursor
 		res.PeerCursor = entry.Sequence
 		if community.AcceptPeerText(entry.Message, r.State, time.Now()) == nil {
 			res.PeerTexts = append(res.PeerTexts, entry)
+			b, _ := json.Marshal(res)
+			if len(b)+1 > community.MaxResponse {
+				res.PeerTexts = res.PeerTexts[:len(res.PeerTexts)-1]
+				res.PeerCursor = previous
+				break
+			}
 		}
 	}
 	return res
@@ -147,8 +218,11 @@ func (s *Service) peerRequest(ctx context.Context, id, raw string, req community
 	}
 	return t.CommunityRequest(ctx, id, i.Addresses, req)
 }
-func (s *Service) postPeerText(ctx context.Context, r localdb.CommunityRecord, body community.Body) (Receipt, error) {
+func (s *Service) postPeerText(ctx context.Context, r localdb.CommunityRecord, body community.Body, original ...community.Operation) (Receipt, error) {
 	m, e := community.NewPeerText(s.key, r.State, body)
+	if len(original) > 0 {
+		m, e = community.PeerTextFromOperation(s.key, r.State, original[0])
+	}
 	if e != nil {
 		return Receipt{}, e
 	}
@@ -191,7 +265,7 @@ func (s *Service) peerWatch() {
 		}
 		r := records[cursor%len(records)]
 		cursor++
-		if r.State.MemberLimit == 0 || r.Denied || r.State.Role(s.id) == "" {
+		if r.Denied || r.State.Role(s.id) == "" {
 			continue
 		}
 		ctx, cancel := context.WithTimeout(s.ctx, 6*time.Second)
@@ -212,12 +286,23 @@ func (s *Service) peerWatch() {
 			after := s.cursors[key]
 			s.peerMu.Unlock()
 			ctx, cancel := context.WithTimeout(s.ctx, 6*time.Second)
-			res, e := s.peerRequest(ctx, id, raw, community.Request{Method: "peer.sync", CommunityID: r.ID, After: after})
+			own, _ := s.selfRoute()
+			res, e := s.peerRequest(ctx, id, raw, community.Request{Method: "peer.sync", CommunityID: r.ID, After: after, ControlAfter: r.State.Sequence, PeerInvite: own})
 			cancel()
 			if e != nil || res.Error != "" || len(res.PeerTexts) > 16 || res.PeerCursor < after {
 				continue
 			}
-			valid := true
+			valid := len(res.Commits) <= 4
+			for _, commit := range res.Commits {
+				if commit.CommunityID != r.ID {
+					valid = false
+					break
+				}
+				if _, err := s.db.CommunityCommit(commit); err != nil {
+					valid = false
+					break
+				}
+			}
 			for _, entry := range res.PeerTexts {
 				if entry.Message.Operation.CommunityID != r.ID || entry.Sequence <= after || entry.Sequence > res.PeerCursor {
 					valid = false
@@ -229,6 +314,11 @@ func (s *Service) peerWatch() {
 				}
 			}
 			if valid {
+				if len(res.PeerInvites) <= 16 {
+					for _, raw := range res.PeerInvites {
+						_ = s.rememberPeer(r, raw)
+					}
+				}
 				s.peerMu.Lock()
 				s.cursors[key] = res.PeerCursor
 				s.peerMu.Unlock()

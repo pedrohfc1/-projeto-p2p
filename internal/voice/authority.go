@@ -12,8 +12,10 @@ import (
 	"time"
 )
 
-const MaxParticipants = 2
-const LeaseSeconds = 45
+const MaxParticipants = 6
+
+// Owner-signed, finite offline window: existing sessions survive temporary owner outage.
+const LeaseSeconds = 15 * 60
 
 type Participant struct {
 	ID      string `json:"id"`
@@ -130,7 +132,7 @@ func (a *Authority) Handle(remote string, r Request) Response {
 		if e != nil || ticket.ID != remote {
 			return fail("invalid participant identity route")
 		}
-		if old, ok := roomState.people[remote]; ok && old.participant.Session != p.Session {
+		if old, ok := roomState.people[remote]; ok && old.participant.Session != p.Session && r.Method != "join" {
 			return fail("another call session already occupies this identity")
 		}
 		limit := MaxParticipants
@@ -139,10 +141,10 @@ func (a *Authority) Handle(remote string, r Request) Response {
 			limit = ch.Limit
 		}
 		if _, exists := roomState.people[remote]; !exists && len(roomState.people) >= limit {
-			return fail("voice_room_full: sala de voz cheia (v0.6.0: duas pessoas)")
+			return fail("voice_room_full: sala de voz cheia (até seis pessoas)")
 		}
 		p.Name = s.Members[remote].Name
-		roomState.people[remote] = presence{participant: p, expires: now.Add(LeaseSeconds * time.Second)}
+		roomState.people[remote] = presence{participant: p, expires: now.Add(45 * time.Second)}
 	default:
 		return fail("unknown voice authority request")
 	}
@@ -158,6 +160,13 @@ func (a *Authority) Handle(remote string, r Request) Response {
 	return Response{Lease: &lease}
 }
 func VerifyLease(l Lease, s community.State, channel string, now time.Time) error {
+	if l.Expires <= now.Unix() {
+		return errors.New("voice_authorization_expired")
+	}
+	if l.Epoch != s.InviteEpoch {
+		return errors.New("voice_authorization_epoch_changed")
+	}
+
 	if l.Domain != "projetop2p/voice-room/0.6.0" || l.Community != s.ID || l.Root != s.Root || l.Owner != s.Owner || l.Epoch != s.InviteEpoch || l.Channel != channel || len(l.Generation) != 32 || l.Sequence == 0 || l.Expires <= now.Unix() || l.Expires > now.Add((LeaseSeconds+5)*time.Second).Unix() || len(l.Participants) > MaxParticipants {
 		return errors.New("invalid or expired voice room authorization")
 	}
@@ -185,4 +194,13 @@ func VerifyLease(l Lease, s community.State, channel string, now time.Time) erro
 		seen[p.ID] = true
 	}
 	return nil
+}
+
+// Called only after full signature/state/session verification. Delayed responses
+// must not replace a newer capability already received from another member.
+func leaseCanAdvance(incoming, current Lease) bool {
+	if incoming.Generation == current.Generation {
+		return incoming.Sequence >= current.Sequence
+	}
+	return incoming.Expires > current.Expires
 }

@@ -117,6 +117,8 @@ type Manager struct {
 	store                     saved
 	token                     string
 	sessions                  map[string]*session
+	starting                  map[string]chan struct{}
+	recoveryAt                map[string]time.Time
 	media                     map[string]*mediaSession
 	paths                     map[string]pathSample
 	server                    *child
@@ -124,6 +126,7 @@ type Manager struct {
 	lastError                 string
 	warning                   atomic.Bool
 	wg                        sync.WaitGroup
+	dialers                   sync.WaitGroup
 	once                      sync.Once
 	probe                     chan struct{}
 }
@@ -412,39 +415,121 @@ func (m *Manager) DialContext(ctx context.Context, network, address string) (net
 		m.mu.Unlock()
 		return nil, errors.New("no authenticated invitation route for synthetic address")
 	}
-	s := m.sessions[id]
-	if s != nil && !s.child.alive() {
-		s.child.stop()
-		delete(m.sessions, id)
-		s = nil
-	}
-	if s == nil {
-		if len(m.sessions) >= MaxSessions {
-			m.mu.Unlock()
-			return nil, errors.New("integrated beta active peer process limit reached")
-		}
-		c, ready, e := m.spawn([]string{"--key", "new", "--relay-file", m.registry, "socks", "--listen", "127.0.0.1:0"}, token, false)
-		if e != nil {
-			m.mu.Unlock()
-			return nil, e
-		}
-		socks, e := waitReady(ctx, c, ready)
-		if e != nil {
-			c.stop()
-			m.mu.Unlock()
-			return nil, e
-		}
-		s = &session{child: c, socks: socks}
-		m.sessions[id] = s
-	}
-	socks := s.socks
 	m.mu.Unlock()
-	d, e := proxy.SOCKS5("tcp", socks, nil, &net.Dialer{Timeout: 5 * time.Second})
+	s, e := m.dialSession(ctx, id, token)
 	if e != nil {
 		return nil, e
 	}
-	return d.(proxy.ContextDialer).DialContext(ctx, "tcp", net.JoinHostPort("server.etcat", port))
+	d, e := proxy.SOCKS5("tcp", s.socks, nil, &net.Dialer{Timeout: 5 * time.Second})
+	if e != nil {
+		return nil, e
+	}
+	conn, e := d.(proxy.ContextDialer).DialContext(ctx, "tcp", net.JoinHostPort("server.etcat", port))
+	if e != nil && !errors.Is(ctx.Err(), context.Canceled) {
+		m.mu.Lock()
+		if m.recoveryAt == nil {
+			m.recoveryAt = map[string]time.Time{}
+		}
+		reset := m.sessions[id] == s && time.Since(m.recoveryAt[id]) >= 5*time.Second
+		if reset {
+			delete(m.sessions, id)
+			m.recoveryAt[id] = time.Now()
+		}
+		m.mu.Unlock()
+		if reset {
+			s.child.stop()
+		}
+	}
+	return conn, e
 }
+
+// One helper startup per peer; unrelated peers never wait on the global mutex.
+func (m *Manager) dialSession(ctx context.Context, id, token string) (*session, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	m.mu.Lock()
+	if m.ctx.Err() != nil {
+		m.mu.Unlock()
+		return nil, m.ctx.Err()
+	}
+	m.dialers.Add(1)
+	m.mu.Unlock()
+	defer m.dialers.Done()
+	for {
+		m.mu.Lock()
+		if m.ctx.Err() != nil {
+			m.mu.Unlock()
+			return nil, m.ctx.Err()
+		}
+		if m.store.Routes[id] != token {
+			m.mu.Unlock()
+			return nil, errors.New("integrated route changed during dial")
+		}
+		if s := m.sessions[id]; s != nil && s.child.alive() {
+			m.mu.Unlock()
+			return s, nil
+		}
+		if m.starting == nil {
+			m.starting = map[string]chan struct{}{}
+		}
+		if wait := m.starting[id]; wait != nil {
+			m.mu.Unlock()
+			select {
+			case <-wait:
+				continue
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-m.ctx.Done():
+				return nil, m.ctx.Err()
+			}
+		}
+		old := m.sessions[id]
+		delete(m.sessions, id)
+		if len(m.sessions)+len(m.starting) >= MaxSessions {
+			m.mu.Unlock()
+			if old != nil {
+				old.child.stop()
+			}
+			return nil, errors.New("integrated active peer process limit reached")
+		}
+		readySlot := make(chan struct{})
+		m.starting[id] = readySlot
+		m.mu.Unlock()
+		if old != nil {
+			old.child.stop()
+		}
+		child, ready, e := m.spawn([]string{"--key", "new", "--relay-file", m.registry, "socks", "--listen", "127.0.0.1:0"}, token, false)
+		var socks string
+		if e == nil {
+			startCtx, cancel := context.WithCancel(ctx)
+			stop := context.AfterFunc(m.ctx, cancel)
+			socks, e = waitReady(startCtx, child, ready)
+			stop()
+			cancel()
+		}
+		var created *session
+		m.mu.Lock()
+		if e == nil && (m.ctx.Err() != nil || m.store.Routes[id] != token) {
+			e = errors.New("integrated startup superseded")
+		}
+		if e == nil {
+			created = &session{child: child, socks: socks}
+			m.sessions[id] = created
+		}
+		delete(m.starting, id)
+		close(readySlot)
+		m.mu.Unlock()
+		if e != nil {
+			if child != nil {
+				child.stop()
+			}
+			return nil, e
+		}
+		return created, nil
+	}
+}
+
 func (m *Manager) Path(id string) string {
 	m.mu.Lock()
 	s := m.sessions[id]
@@ -498,6 +583,14 @@ func (m *Manager) Close() {
 		for _, c := range clients {
 			c.stop()
 		}
+		m.dialers.Wait()
 		m.wg.Wait()
 	})
+}
+
+// HasRoute exposes only availability; credentials never leave the sealed manager.
+func (m *Manager) HasRoute(id string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.store.Routes[id] != ""
 }

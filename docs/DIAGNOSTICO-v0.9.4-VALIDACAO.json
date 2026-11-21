@@ -1,0 +1,37 @@
+{
+  "version": "0.9.4",
+  "passed": [
+    "50 frontend tests: bounded ring, redaction, filters, structured console allowlist, copy fallback, SSR closed startup and existing media/UI regressions",
+    "go test ./... and go vet ./...",
+    "Real Core sampler and cancellation; concurrent ring overwrite/cursor/clear; nonblocking media writer; standard logger recursion regression; clipboard size limit",
+    "Synthetic Opus voice between two production processes over EasyTier/libp2p",
+    "Generated VP8 decoded over encrypted EasyTier with simultaneous Opus/chat, reconnect, preview isolation, multiple publishers and cleanup; production diagnostic collector enabled and nonzero audio counters captured",
+    "Windows native Wails prompt-v1 and Windows/Linux CLI builds",
+    "Native Windows isolated profile: closed startup, actual frontend/backend logs with milliseconds, WARN, pause/resume, video filter, community navigation persistence, drag, resize, copy warning and successful confirmed copy in final build",
+    "Installer exact payload and license/source integrity; PE audit"
+  ],
+  "pending": [
+    "Two physical PCs and real devices",
+    "Full PgUp/PgDown, mouse selection/Ctrl+C and minimization/restore interaction matrix under an active native call",
+    "Long-duration console CPU/RAM measurements and prolonged load",
+    "Full installer execution/upgrade/reboot for this version; payload verification is not installation",
+    "Linux native GUI and race checks"
+  ],
+  "observations": [
+    "First optional screen attempt did not establish local video bridge; subsequent complete regressions passed",
+    "Collector integration test exposed recursive slog/default log bridge; fixed with direct sink and regression test",
+    "Initial native clipboard IPC failed; browser clipboard plus dedicated bounded native API and selectable manual fallback added; final native confirmed copy reported success"
+  ],
+  "privacy": {
+    "localOnly": true,
+    "eventsPerBuffer": 2000,
+    "maxTextUnits": 768,
+    "mediaPayloads": false,
+    "chatContents": false,
+    "automaticExport": false,
+    "copyConfirmation": true
+  },
+  "appSHA256": "b340f28dd62fafdd1ef24e52058fc0fab1c24574facfb9ebc58535ec1b0064b0",
+  "setupSHA256": "f6890231062455388ccaea124dc910d846a47fb48085f10080478fcb3a35700e",
+  "publicRelease": false
+}

@@ -87,7 +87,6 @@ func (d *DB) TrackCommunity(r CommunityRecord) error {
 			}
 			old.Scope = r.Scope
 			old.Addresses = r.Addresses
-			old.Denied = false
 			return putRecord(tx, old)
 		}
 		if tx.Bucket([]byte("communities")).Stats().KeyN >= MaxCommunities {
@@ -391,7 +390,6 @@ func applyCommunityTx(tx *bolt.Tx, c community.Commit, applied *bool) error {
 	r.Name = next.Name
 	r.LogBytes += uint64(len(raw))
 	r.LastError = ""
-	r.Denied = false
 	if e = putRecord(tx, r); e != nil {
 		return e
 	}

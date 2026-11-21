@@ -115,6 +115,9 @@ func TestRealTwoPersonVoiceProductionService(t *testing.T) {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
+	if current := a.VoiceState(); current.CommunityName == "" || current.ChannelName == "" {
+		t.Fatal("voice panel lacks verified local destination labels")
+	}
 	t.Log("authenticated production voice connected", a.VoiceState().Media, b.VoiceState().Media)
 	// Exercise malicious renegotiation through the actual authenticated stream.
 	initiator, responder := a, b
@@ -171,8 +174,8 @@ func TestRealTwoPersonVoiceProductionService(t *testing.T) {
 	}
 	// Interrupt only test-owned media helpers; chat/signaling helpers remain alive.
 	interrupted := time.Now()
-	a.integrated.CloseMedia(b.node.SelfID())
-	b.integrated.CloseMedia(a.node.SelfID())
+	_ = a.node.Host.Network().ClosePeer(b.node.Host.ID())
+	_ = b.node.Host.Network().ClosePeer(a.node.Host.ID())
 	time.Sleep(22 * time.Second)
 	deadline = time.Now().Add(50 * time.Second)
 	for a.VoiceState().Media.State != "connected" || b.VoiceState().Media.State != "connected" {
@@ -188,6 +191,36 @@ func TestRealTwoPersonVoiceProductionService(t *testing.T) {
 		t.Fatal("reconnected ICE without usable media", a.VoiceState(), b.VoiceState())
 	}
 	t.Log("reconnection with fresh forwarding and authenticated SDP", time.Since(interrupted))
+	sessionBefore := a.VoiceState().Session
+	repaired, e := engineA.Peer(func(*rtp.Packet) { heardA.Add(1) })
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer repaired.Close()
+	localAnswer, e := a.VoiceRebind(browserOffer(t, repaired))
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = repaired.PC.SetRemoteDescription(localAnswer); e != nil {
+		t.Fatal(e)
+	}
+	deadline = time.Now().Add(8 * time.Second)
+	for repaired.Stats().State != "connected" {
+		if time.Now().After(deadline) {
+			t.Fatal("local bridge repair failed")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	browserA = repaired
+	if !a.VoiceState().Joined || a.VoiceState().Session != sessionBefore {
+		t.Fatal("local media repair expelled participant")
+	}
+	beforeRepair := heardB.Load()
+	send(browserA, 15)
+	time.Sleep(200 * time.Millisecond)
+	if heardB.Load() < beforeRepair+10 {
+		t.Fatal("local repair silent")
+	}
 	a.VoiceControls(true, false)
 	time.Sleep(150 * time.Millisecond)
 	before := heardB.Load()
@@ -216,11 +249,15 @@ func TestRealTwoPersonVoiceProductionService(t *testing.T) {
 		t.Fatal(e, result)
 	}
 	deadline = time.Now().Add(8 * time.Second)
-	for a.VoiceState().Joined || b.VoiceState().Joined {
+	for b.VoiceState().Joined {
 		if time.Now().After(deadline) {
 			t.Fatal("revocation did not stop media", a.VoiceState(), b.VoiceState())
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	t.Log("bidirectional synthetic Opus through real production libp2p signaling + EasyTier UDP, mute, deaf, concurrent text and revoked-member shutdown passed; not microphone or two-house test")
+	if !a.VoiceState().Joined {
+		t.Fatal("another member removal expelled the owner")
+	}
+	a.VoiceLeave()
+	t.Log("bidirectional Opus/libp2p over EasyTier, local bridge repair, mute, deaf, concurrent text, reconnect and revoked-member shutdown passed; not microphone or two-house test")
 }

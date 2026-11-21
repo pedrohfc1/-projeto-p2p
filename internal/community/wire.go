@@ -1,5 +1,7 @@
 package community
 
+import "projetop2p/internal/chat"
+
 // Requests are authenticated by libp2p and again by signed operations. Sync never trusts a snapshot.
 type InvitationStatus struct {
 	Nonce     string `json:"nonce"`
@@ -9,6 +11,9 @@ type InvitationStatus struct {
 	Sequence  uint64 `json:"sequence"`
 }
 type Request struct {
+	ActivityRoom  *chat.Room     `json:"activityRoom,omitempty"`
+	Activity      *chat.Event    `json:"activity,omitempty"`
+	ActivityAfter uint64         `json:"activityAfter,omitempty"`
 	PeerInvite    string         `json:"peerInvite,omitempty"`
 	PeerText      *PeerText      `json:"peerText,omitempty"`
 	InviteToken   string         `json:"inviteToken,omitempty"`
@@ -16,10 +21,13 @@ type Request struct {
 	Method        string         `json:"method"`
 	CommunityID   string         `json:"communityId"`
 	After         uint64         `json:"after"`
+	ControlAfter  uint64         `json:"controlAfter,omitempty"`
 	Head          string         `json:"head"`
 	Operation     *Operation     `json:"operation,omitempty"`
 }
 type Response struct {
+	Activities       []chat.Entry      `json:"activities,omitempty"`
+	ActivityCursor   uint64            `json:"activityCursor,omitempty"`
 	PeerInvites      []string          `json:"peerInvites,omitempty"`
 	PeerTexts        []PeerTextEntry   `json:"peerTexts,omitempty"`
 	PeerCursor       uint64            `json:"peerCursor,omitempty"`

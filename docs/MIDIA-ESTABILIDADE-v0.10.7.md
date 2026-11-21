@@ -1,0 +1,31 @@
+# PeeTwoPee 0.10.7 — estabilidade de voz e transmissão
+
+## O que mudou
+
+A fila de vídeo descarta quadros vencidos e deltas que dependiam de quadros perdidos. O envio aguarda um keyframe novo antes de voltar a publicar deltas. O limite de bytes em trânsito e o prazo de ACK impedem que o stream TCP de vídeo acumule indefinidamente. Quando a fila de Opus tem pressão ou a voz está se reconectando, o vídeo cede capacidade. Essa prioridade é aplicada dentro do aplicativo. Ela não controla filas da rede ou do relay.
+
+A recuperação de vídeo registra estágio, horário e resultado. A troca de stream gera um identificador novo e volta a anunciar a publicação existente. A ponte local pode ser reaberta usando a mesma faixa autorizada. Uma captura encerrada pelo sistema precisa de nova seleção explícita. O seletor de tela abre uma prévia, e **Iniciar compartilhamento** é a ação que autoriza a publicação. O código verifica a autorização da sala antes de retomar a mídia.
+
+Os perfis incluem Automático, 720p30, 1080p30 e 1080p60. O aplicativo consulta a capacidade VP8 do WebView e observa os resultados de captura e transmissão. Se a capacidade estiver indisponível ou a configuração não for sustentável, a seleção e o controle de qualidade podem manter ou reduzir a resolução e a taxa. Exibições de FPS e resolução usam medidas do estágio correspondente quando disponíveis. Um pedido de 1080p60 é um limite de perfil e não uma garantia de desempenho.
+
+O codec de vídeo selecionável no fio continua sendo VP8. O WebView escolhe a implementação disponível, incluindo software. Quando o runtime expõe `encoderImplementation`, `decoderImplementation` e o indicador de eficiência, o diagnóstico os mostra. Um indicador de eficiência não identifica por si só NVENC, AMF ou Quick Sync. A utilização da GPU fica indisponível quando o runtime não informa essa medida. [Estatísticas de WebRTC](https://www.w3.org/TR/webrtc-stats/) · [Media Capabilities](https://www.w3.org/TR/media-capabilities/) · [Diagnóstico de vídeo no Edge](https://learn.microsoft.com/en-us/troubleshoot/microsoft-edge/development/video-playback-issues)
+
+## Diagnóstico e comparação
+
+Abra **Diagnóstico** durante a chamada e alterne entre **60 segundos** e **30 minutos**. A janela curta conserva a visão detalhada. A história longa tem até 360 amostras compactas em memória, uma por faixa de cinco segundos. Com o painel fechado a coleta é passiva. A sonda RTT funciona com o painel visível. Se o WebView suspender a coleta, o gráfico mantém a lacuna. O arquivo JSON inclui `history30Minutes`, recursos do processo Go e as medidas de mídia disponíveis. O diagnóstico não grava mídia e não envia relatórios.
+
+Para comparar em dois PCs, mantenha versão, conteúdo da fonte, perfil, limite de bitrate, duração e quantidade de espectadores iguais. Use a mesma janela de 30 minutos em cada modo. No Radmin, primeiro confirme que ambos os usuários têm acesso à rede existente. Exporte um JSON ao fim de cada chamada e use **Comparar conexões > Importar relatório ou resumo** para selecionar os dois resultados. A importação conserva o resumo numérico, sem IPs, identificadores ou conteúdo do relatório original. Considere RTT, FPS efetivo, Mbps de vídeo, descartes, interrupções e renovações de autorização. A latência de ACK e a variação de RTT não medem atraso entre as telas.
+
+O ensaio automatizado usa `scripts/run-screen-soak.ps1` e material VP8 sintético. Compare ensaios com o mesmo `fixtureSHA256`, duração e parâmetros. Loopback é uma referência local e não equivale a Radmin. Tailscale continua como laboratório separado e não entra na comparação de voz e vídeo do aplicativo.
+
+## Resultados locais
+
+O ensaio EasyTier de 1.800,3 s usou dois núcleos de produção na mesma máquina e conteúdo sintético. Recebeu 53.363 dos 53.999 quadros VP8 de 1280×720, a 29,64 quadros completos por segundo e 1,007 Mbps de payload. Recebeu 90.015 pacotes Opus em cada direção. A maior lacuna entre quadros completos foi 100,17 ms. O RTT médio/P95 local foi 0,705/1,152 ms. O RSS combinado dos dois núcleos no processo de teste passou de 93,78 para 103,70 MiB, com pico de 104,71 MiB. A CPU ficou em média em 15,10% de um núcleo lógico. Esses dados excluem WebView2 e o processo EasyTier. O ensaio precedeu o ajuste final de limpeza de estado visual do controle de áudio, e os testes curtos cobrem o código final.
+
+A placa detectada nesta máquina foi AMD Radeon RX 7600. Um ensaio separado no FFmpeg com 600 quadros sintéticos de 1920×1080 a 60 FPS codificou VP8/libvpx em 5,093 s e H.264/AMF em 1,646 s. O resultado inclui a geração do padrão local. Ele não mede end-to-end, não comprova aceleração no WebView e não valida H.264 com receptores PeeTwoPee. H.264 permanece fora da seleção do codec no aplicativo.
+
+Na comparação curta com o mesmo VP8 sintético de 1920×1080 a 60 FPS e teto de 7,5 Mbps, o EasyTier local remontou 53,05 quadros/s e o loopback 53,30 quadros/s. O RTT médio/P95 foi 0,719/1,097 ms no EasyTier e 0,348/0,525 ms no loopback. Ambos tiveram descartes e uma lacuna acima de 500 ms. Com 9 Mbps e o mesmo material, o EasyTier local remontou 55,66 quadros/s a 7,55 Mbps de payload, e o loopback 55,22 quadros/s a 7,49 Mbps. Nenhum dos dois reportou descartes de fila ou lacunas acima de 500 ms na janela de cerca de 20 segundos. O limite de bitrate foi uma restrição comum ao ensaio. Isso não estabelece um gargalo do EasyTier em redes externas.
+
+No ensaio separado de WebRTC em Edge local com canvas sintético, o VP8 renderizou 1280×720 a 29,16 FPS e 1920×1080 a 28,49 FPS. Ao pedir 1080p60, o runtime reduziu para 480×270 e renderizou a 55,77 FPS. O motor não expôs o nome do encoder nem o estado de aceleração nesse ensaio. Os quadros remontados pelo núcleo de produção e os FPS renderizados no navegador são medidas de etapas distintas.
+
+O detalhamento dos ensaios curtos, limites medidos, verificação do payload e atualização isolada consta em `VALIDACAO.json`. Um teste do instalador encontrou bloqueio transitório do executável e passou em duas repetições isoladas. O beta Windows é privado e sem assinatura Authenticode de editor. Webcam ainda não é suportada pelo aplicativo. Testes em dois PCs, Radmin real e medições físicas de câmera, microfone, tela e latência em redes externas seguem pendentes.

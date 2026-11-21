@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"strings"
 	"time"
 )
@@ -27,6 +28,18 @@ func NewPeerText(key crypto.PrivKey, s State, body Body) (PeerText, error) {
 	o, e := SignOperation(key, s.ID, s.Head, Text, body)
 	if e != nil {
 		return PeerText{}, e
+	}
+	return PeerTextFromOperation(key, s, o)
+}
+
+// PeerTextFromOperation preserves the operation ID when a legacy owner-ordered text falls back offline.
+func PeerTextFromOperation(key crypto.PrivKey, s State, o Operation) (PeerText, error) {
+	if e := VerifyOperation(o); e != nil {
+		return PeerText{}, e
+	}
+	self, e := peer.IDFromPrivateKey(key)
+	if e != nil || o.Author != self.String() || o.CommunityID != s.ID || o.Kind != Text {
+		return PeerText{}, errors.New("invalid text fallback author")
 	}
 	m := PeerText{Domain: "projetop2p/community-peer-text/1", Root: s.Root, Epoch: s.InviteEpoch, Operation: o}
 	m.Signature, e = key.Sign(m.payload())
