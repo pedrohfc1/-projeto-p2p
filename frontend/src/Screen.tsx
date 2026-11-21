@@ -4,14 +4,14 @@ import {readTransmissionPreference, saveTransmissionPreference} from './transmis
 import {SettingsSurface} from './SettingsCenter';
 import {SystemAudioPanel, type SoundControls} from './SystemAudio';
 import type {SoundAPI} from './screenSound';
-import {ScreenViewerOverlay} from './ScreenViewer';
+import {ScreenShareDirectory, ScreenShareEmpty, ScreenStagePortal, ScreenViewerModeControls, ScreenViewerOverlay} from './ScreenViewer';
 import {diagnostic} from './diagnostics';
 import {detectVideoFault, VideoRecoveryBudget, watchStatus, screenVisibilityAction, type VideoFault} from './screenSession';
 import {VideoTelemetry} from './videoTelemetry';
 import {captureLimits, inspectVideoCapabilities, selectCaptureProfile, VideoQualityGovernor, type VideoCapabilities} from './videoCapabilities';
 import type {ScreenControls, ScreenControlState} from './callPresentation';
 import React, {useEffect, useRef, useState, useImperativeHandle, forwardRef} from 'react';
-import {Monitor, Square, Maximize2, X} from 'lucide-react';
+import {Square, X} from 'lucide-react';
 import {ScreenCapture, screenFailure, videoBitrate, screenProfiles, type ScreenProfile} from './screenCapture';
 import {isBackground} from './background';
 
@@ -152,8 +152,11 @@ export const ScreenPanel = forwardRef<ScreenControls, {
  authorization?: string;
  expires?: number;
  output?: string;
+ stageContainer?: HTMLElement | null;
+ selfName?: string;
+ selfID?: string;
  onControlState: (state: ScreenControlState) => void;
-}>(function ScreenPanel({api, session, authorization, expires, output = '', onControlState}, controlRef) {
+}>(function ScreenPanel({api, session, authorization, expires, output = '', onControlState, stageContainer, selfName = 'Sua transmissão', selfID}, controlRef) {
  const [defaults] = useState(readTransmissionPreference);
  const [state, setState] = useState<ScreenView | null>(null);
  const [preview, setPreview] = useState<MediaStream | null>(null);
@@ -165,9 +168,12 @@ export const ScreenPanel = forwardRef<ScreenControls, {
  const [limit, setLimit] = useState(defaults.limit);
  const [maxViewers, setMaxViewers] = useState(defaults.viewers);
  const [pick, setPick] = useState(false);
- const [expanded, setExpanded] = useState(false);
- const [remotePreview, setRemotePreview] = useState('');
+ const [directory, setDirectory] = useState<string | null>(null);
  const [compact, setCompact] = useState(true);
+ const [theater, setTheater] = useState(false);
+ const [fullscreen, setFullscreen] = useState(false);
+ const [viewerAudioTarget, setViewerAudioTarget] = useState<HTMLDivElement | null>(null);
+ const [audioStatusTarget, setAudioStatusTarget] = useState<HTMLDivElement | null>(null);
  const [endedNotice, setEndedNotice] = useState('');
  const [controlsVisible, setControlsVisible] = useState(true);
  const [capabilities, setCapabilities] = useState<VideoCapabilities>({});
@@ -177,7 +183,7 @@ export const ScreenPanel = forwardRef<ScreenControls, {
  const [playRetry, setPlayRetry] = useState(0);
  const [lastRecovery, setLastRecovery] = useState<ScreenRecoveryEvent | null>(null);
 
- const stage = useRef<HTMLDivElement | null>(null);
+ const stage = useRef<HTMLElement | null>(null);
  const sound = useRef<SoundControls | null>(null);
  const mounted = useRef(true);
  const backgroundAllowed = useRef(false);
@@ -280,7 +286,7 @@ export const ScreenPanel = forwardRef<ScreenControls, {
   stopSharing();
   watchVersion.current++;
   watching.current = '';
-  setRemotePreview('');
+  setDirectory(null);
   resetBridge();
   stopPromise.current = stopPromise.current.catch(() => {}).then(() => api().ScreenStop()).catch(() => {});
  }
@@ -468,7 +474,6 @@ export const ScreenPanel = forwardRef<ScreenControls, {
     if (status === 'ended') {
      watchVersion.current++;
      watching.current = '';
-     setRemotePreview('');
      setEndedNotice('Transmissão encerrada ou acesso indisponível.');
      void api().ScreenWatch('').catch(() => {});
     } else if (id && next.active && next.watching !== id && !isBackground() && next.peers.some(peer => peer.id === id)) {
@@ -624,7 +629,6 @@ export const ScreenPanel = forwardRef<ScreenControls, {
    ? 'O WebView não confirmou VP8 fluido no perfil escolhido. A captura usará um perfil compatível.'
    : '');
   setPick(true);
-  setExpanded(true);
   setBusy(true);
   void capture.current!.select(offered).then(stream => {
    if (!stream || !mounted.current || approval !== publishVersion.current) return;
@@ -704,37 +708,128 @@ export const ScreenPanel = forwardRef<ScreenControls, {
   }
  }
 
+ function toggleShare() {
+  if (publishing.current || state?.publishing) stopSharing();
+  else if (ready && !busy && !requiresConsentAgain()) select();
+ }
+
+ function toggleFocus() {
+  if (stageContainer) setTheater(value => !value);
+  else setCompact(value => !value);
+ }
+
  useImperativeHandle(controlRef, () => ({
-  toggle: () => {
-   if (publishing.current || state?.publishing) stopSharing();
-   else if (ready && !busy) select();
-  },
-  preview: (id: string) => {
-   if (!ready) return;
-   setRemotePreview(id);
-   setExpanded(true);
-   void watch(id);
-  },
+  toggle: toggleShare,
+  showStreams: () => setDirectory(''),
+  preview: id => setDirectory(id),
+  focus: toggleFocus,
  }));
 
- const peerSignature = JSON.stringify(state?.peers?.map(peer => [peer.id, peer.name, peer.sharing, peer.connected]));
+ const watchId = watching.current;
+ const remoteVisible = !!watchId;
+ const sharing = publishing.current || !!state?.publishing;
+ const localVisible = sharing && !!preview && !remoteVisible;
+ const playerVisible = remoteVisible || localVisible;
+ const streams = state?.peers.filter(peer => peer.sharing && peer.connected) ?? [];
+ const selected = state?.peers.find(peer => peer.id === watchId);
+ const mediaAllowed = !requiresConsentAgain();
+ const mediaPlaying = mediaAllowed && !!watchId && state?.playing === watchId && !!selected?.connected && !!selected.accepted;
+ const localSettings = localVisible ? preview?.getVideoTracks()[0]?.getSettings() : null;
+ const quality = remoteVisible ? {
+  width: mediaPlaying ? render?.width : null,
+  height: mediaPlaying ? render?.height : null,
+  fps: mediaPlaying ? render?.fps : null,
+ } : {
+  width: localVisible ? rates?.encodeWidth || localSettings?.width : null,
+  height: localVisible ? rates?.encodeHeight || localSettings?.height : null,
+  fps: localVisible && state?.viewers ? rates?.encode : null,
+ };
+ const viewers = state?.viewers ?? 0;
+ const peerSignature = JSON.stringify(state?.peers?.map(peer => [peer.id, peer.name, peer.sharing, peer.connected, peer.statusKnown]));
+ const streamsOpen = directory !== null;
+ const canStartMedia = ready && mediaAllowed;
  useEffect(() => {
-  onControlState({ready, sharing: publishing.current || !!state?.publishing, busy, peers: state?.peers || []});
- }, [ready, state?.publishing, busy, peerSignature, onControlState]);
+  onControlState({ready: canStartMedia, sharing, busy, session, watching: watchId, playing: mediaPlaying ? watchId : '', viewers, theater, streamsOpen, quality, peers: state?.peers ?? []});
+ }, [canStartMedia, sharing, busy, session, watchId, mediaPlaying, viewers, theater, streamsOpen, quality.width, quality.height, quality.fps, peerSignature, onControlState]);
 
- const selected = state?.peers.find(peer => peer.id === watching.current);
- const remoteVisible = !!watching.current;
- const renderFPS = render?.fps ?? null;
- const details = [
-  rates?.encodeWidth && rates.encodeHeight ? `${rates.encodeWidth}×${rates.encodeHeight}` : 'Resolução do encoder n/d',
-  rates?.encode != null ? `${rates.encode.toFixed(1)} FPS codificados` : 'FPS codificados n/d',
-  rates?.codec || 'Codec em observação',
-  rates?.encoder || 'encoder não informado',
- ].join(' · ');
  useEffect(() => {
-  if (remoteVisible) revealControls();
+  if (playerVisible) revealControls();
+  else setTheater(false);
   return () => clearTimeout(controlsTimer.current);
- }, [remoteVisible]);
- return <section className={'screen-panel '+(compact?'compact-stream':'wide-stream')} aria-label="Compartilhamento de tela"><header><Monitor size={17}/><b>Transmissões</b><button title={expanded?'Recolher telas':'Ver telas dos participantes'} className="secondary" onClick={()=>setExpanded(!expanded)}>{expanded?'Recolher':'Telas dos participantes'}</button>{(publishing.current||state?.publishing)?<><span className="screen-live" role="status"><span className="live-badge">AO VIVO</span> · {state?.viewers||0} espectador(es)</span><button title="Parar compartilhamento de tela" className="danger secondary" onClick={()=>stopSharing()}><Square size={14}/> Parar compartilhamento</button></>:<button title="Escolher monitor ou janela para compartilhar" className="primary" disabled={busy||!ready} onClick={select}>Compartilhar tela</button>}</header><details className="screen-consent-details"><summary>Permissões e detalhes técnicos</summary><p className="screen-consent">Confira a prévia e confirme Iniciar compartilhamento para transmitir a fonte e o áudio compatível. Janela: somente o aplicativo identificado; monitor: toda a saída padrão, inclusive notificações. Sem gravação. O áudio é interrompido se não for possível evitar eco.</p></details><SystemAudioPanel output={output} session={session} ref={sound} api={api} publishing={!!state?.publishing} watching={!!watching.current} watchedId={watching.current}/><div hidden={!expanded&&!watching.current}><SettingsSurface section="transmission"><TransmissionFields profile={profile} limit={limit} viewers={maxViewers} profileLocked={busy||!!state?.publishing||!!preview} limitsLocked={!!state?.publishing} onProfile={q=>{setProfile(q);setLimit(q==='1080p60'?10000000:q==='1080p30'||q==='720p60'?6000000:3000000)}} onLimit={setLimit} onViewers={setMaxViewers}/></SettingsSurface>{state?.peers.filter(p=>p.sharing&&p.connected).map(p=><button key={p.id} className="secondary" onClick={()=>{setRemotePreview(p.id);setExpanded(true);void watch(p.id)}}><span className="live-badge">AO VIVO</span> {p.name||p.id.slice(0,10)} · {state.watching===p.id?'Assistindo':'Assistir'}</button>)}{state?.publishing&&preview&&!remoteVisible&&<div className="screen-stage local-screen-stage"><Video stream={preview} preview/><span className="screen-local-caption"><span className="live-badge">AO VIVO</span> Sua transmissão · {state.viewers} espectador(es)</span></div>}{remoteVisible&&<div className={'screen-stage '+(controlsVisible?'show-controls':'')} ref={stage} onPointerMove={revealControls} onFocusCapture={revealControls} onKeyDown={revealControls}><Video stream={remote} retry={playRetry} onRendered={setRender}/><ScreenViewerOverlay name={selected?.name||'Transmissão selecionada'} connected={!!selected?.connected&&!!selected?.accepted&&state?.playing===watching.current} width={render?.width??rates?.width} height={render?.height??rates?.height} fps={selected?.connected&&selected?.accepted&&state?.playing===watching.current?renderFPS:null} mbps={rates?.downloadMbps}><button className="secondary" title="Alternar tamanho da transmissão" onClick={()=>setCompact(!compact)}>{compact?'Ampliar no aplicativo':'Modo compacto'}</button><button title="Assistir em tela cheia" className="secondary" onClick={()=>void (document.fullscreenElement?document.exitFullscreen():stage.current?.requestFullscreen())?.catch(e=>setError(String(e)))}><Maximize2 size={14}/> Tela cheia</button><button title="Parar de assistir a esta tela" className="secondary" onClick={()=>{setRemotePreview('');void watch('')}}>Parar de assistir</button></ScreenViewerOverlay></div>}{state?.publishing&&<details className="screen-technical"><summary>Qualidade da transmissão</summary><small>{details} · saída {state.bytesOut} bytes · {state.framesOut} frames · {state.dropped} descartados</small></details>}</div>{rates&&<details className="screen-technical"><summary>Métricas de vídeo</summary><small role="status">FPS reais · captura {rates.capture?.toFixed(1)??'n/d'} · encoder {rates.encode?.toFixed(1)??'n/d'} · envio {rates.sent?.toFixed(1)??'n/d'} · recepção {rates.received?.toFixed(1)??'n/d'} · decoder {rates.decode?.toFixed(1)??'n/d'} · render {renderFPS?.toFixed(1)??'n/d'}<br/>Rede: ↑ {rates.uploadMbps.toFixed(2)} / ↓ {rates.downloadMbps.toFixed(2)} Mbps · RTT ACK {state?.roundTripMs.toFixed(0)??'n/d'} ms · descartes {state?.dropped??0} · {Object.entries(state?.dropReasons||{}).map(([k,v])=>`${k}:${v}`).join(" ")} · perda RTP ponte local {rates.localBridgePacketLoss??'n/d'}; perda do túnel TCP não mensurável<br/>Codec {rates.codec??'n/d'} · encoder {rates.encoder??'n/d'} · decoder {rates.decoder??'n/d'}
- · eficiência reportada pelo WebView (encode/decode) {rates.efficientEncoder==null?'n/d':rates.efficientEncoder?'sim':'não'}/{rates.efficientDecoder==null?'n/d':rates.efficientDecoder?'sim':'não'}</small></details>}{lastRecovery&&<p role="status">{new Date(lastRecovery.at).toLocaleTimeString('pt-BR')} · {lastRecovery.message}</p>}{endedNotice&&<p className="stream-ended" role="status">{endedNotice}</p>}{state?.error&&!error&&<small>{state.error}</small>}{error&&<p className="error" role="alert">{error}</p>}{remotePreview&&<div className="modal-overlay"><section className="modal screen-preview" role="dialog" aria-label="Prévia da transmissão"><button className="close icon" title="Fechar prévia e parar de assistir" onClick={()=>{setRemotePreview('');void watch('')}}><X/></button><h2>{state?.peers.find(p=>p.id===remotePreview)?.name||'Transmissor'}</h2><span className="live-badge">AO VIVO</span>{state?.peers.some(p=>p.id===remotePreview&&p.sharing&&p.connected)?<Video stream={state?.playing===remotePreview?remote:null} preview/>:<p>Transmissão encerrada ou permissão indisponível.</p>}<button className="primary" onClick={()=>{setRemotePreview('');setExpanded(true)}}>Assistir</button></section></div>}{pick&&<div className="modal-overlay"><section className="modal screen-preview" role="dialog" aria-label="Prévia antes de transmitir"><button className="close icon" aria-label="Cancelar compartilhamento" onClick={()=>stopSharing()}><X/></button><h2>Confira a fonte selecionada</h2><p>Escolha o monitor inteiro ou a janela exata no seletor do Windows. Ao confirmar o compartilhamento, a fonte será transmitida com áudio compatível, sem gravação nem troca automática de fonte.</p><Video stream={preview} preview/>{captureNote&&<p role="status">{captureNote}</p>}<small>{preview?.getVideoTracks()[0]?.label||'Aguardando a sua escolha no seletor do sistema…'}</small><button className="primary" disabled={busy||!preview||!ready} onClick={()=>void start()}>Iniciar compartilhamento</button><button className="secondary" onClick={()=>stopSharing()}>Cancelar</button><p>Ao minimizar, a transmissão continua com indicador e opção Parar na bandeja. Captura de janela minimizada depende do Windows; use um monitor para maior compatibilidade.</p>{error&&<p role="alert">{error}</p>}</section></div>}</section>
+ }, [playerVisible]);
+ useEffect(() => {
+  const changed = () => setFullscreen(!!stage.current && document.fullscreenElement === stage.current);
+  document.addEventListener('fullscreenchange', changed);
+  return () => document.removeEventListener('fullscreenchange', changed);
+ }, []);
+
+ function toggleFullscreen() {
+  if (document.fullscreenElement === stage.current && document.fullscreenElement) {
+   void document.exitFullscreen().catch(e => setError(screenFailure(e)));
+  } else {
+   void stage.current?.requestFullscreen().catch(e => setError(screenFailure(e)));
+  }
+ }
+
+ function selectStream(id: string) {
+  if (!ready || requiresConsentAgain() || !streams.some(stream => stream.id === id)) return;
+  setDirectory(null);
+  void watch(id);
+ }
+
+ const stageNotice = error || endedNotice || state?.error;
+ return <>
+  <ScreenStagePortal target={stageContainer}>
+   {playerVisible && <section className={'screen-stage '+(localVisible ? 'local-screen-stage ' : '')+(controlsVisible ? 'show-controls ' : '')+(!stageContainer && !compact ? 'expanded-screen-stage' : '')}
+    ref={stage} aria-label="Transmissão em destaque" onPointerMove={revealControls} onFocusCapture={revealControls} onKeyDown={revealControls}>
+    <Video stream={remoteVisible ? mediaPlaying ? remote : null : preview} preview={localVisible} retry={playRetry} onRendered={remoteVisible ? setRender : undefined}/>
+    <ScreenViewerOverlay peerId={remoteVisible ? watchId : selfID} name={remoteVisible ? selected?.name || 'Transmissão selecionada' : selfName} connected={remoteVisible ? mediaPlaying : sharing}
+     {...quality} mbps={remoteVisible ? mediaPlaying ? rates?.downloadMbps : null : rates?.uploadMbps}>
+     {remoteVisible ? <div className="screen-viewer-audio" ref={setViewerAudioTarget}/> : <small className="screen-viewer-count">{viewers} {viewers===1 ? 'espectador' : 'espectadores'}</small>}
+     <div className="screen-viewer-actions">
+      <ScreenViewerModeControls inRoom={!!stageContainer} theater={theater} compact={compact} fullscreen={fullscreen} onFocus={toggleFocus} onFullscreen={toggleFullscreen}/>
+      {remoteVisible ? <button type="button" className="screen-control-icon" title="Parar de assistir" aria-label="Parar de assistir" onClick={() => void watch('')}><X size={18}/></button> :
+       <button type="button" className="screen-control-icon" title="Parar compartilhamento" aria-label="Parar compartilhamento" onClick={() => stopSharing()}><Square size={15}/></button>}
+     </div>
+    </ScreenViewerOverlay>
+   </section>}
+   {!playerVisible && stageContainer && <ScreenShareEmpty ready={canStartMedia} busy={busy} remoteStreams={streams.length} onShare={toggleShare} onBrowse={() => setDirectory('')}/>}
+   {(playerVisible || stageContainer || endedNotice) && (stageNotice || lastRecovery) && <div className="screen-stage-notices">
+    {stageNotice && <p role={error ? 'alert' : 'status'}>{stageNotice}{endedNotice && !error && <button type="button" className="screen-control-icon" title="Dispensar aviso" aria-label="Dispensar aviso" onClick={() => setEndedNotice('')}><X size={15}/></button>}</p>}
+    {lastRecovery && playerVisible && <details><summary>Recuperação da transmissão</summary><small>{new Date(lastRecovery.at).toLocaleTimeString('pt-BR')} · {lastRecovery.message}</small></details>}
+   </div>}
+  </ScreenStagePortal>
+
+  <SystemAudioPanel api={api} output={output} session={session} ref={sound} publishing={!!state?.publishing} watching={remoteVisible} watchedId={watchId} viewerTarget={viewerAudioTarget} statusTarget={audioStatusTarget}/>
+  <SettingsSurface section="transmission">
+   <TransmissionFields profile={profile} limit={limit} viewers={maxViewers} profileLocked={busy||sharing||!!preview} limitsLocked={sharing}
+    onProfile={value => {setProfile(value);setLimit(value==='1080p60'?10000000:value==='1080p30'||value==='720p60'?6000000:3000000);}} onLimit={setLimit} onViewers={setMaxViewers}/>
+   <details className="settings-card screen-transmission-details">
+    <summary>Detalhes técnicos da transmissão</summary>
+    <p>Confira a prévia e confirme Iniciar compartilhamento. Janela: aplicativo identificado. Monitor: saída padrão, inclusive notificações. O áudio é interrompido se não for possível evitar eco.</p>
+    <div ref={setAudioStatusTarget}/>
+    {rates && <dl>
+     <dt>Quadros por segundo</dt><dd>Captura {rateText(rates.capture)} · encoder {rateText(rates.encode)} · envio {rateText(rates.sent)} · recepção {rateText(rates.received)} · decoder {rateText(rates.decode)} · render {rateText(render?.fps)}</dd>
+     <dt>Tráfego e fila</dt><dd>↑ {rates.uploadMbps.toFixed(2)} / ↓ {rates.downloadMbps.toFixed(2)} Mbps · RTT ACK {state?.roundTripMs.toFixed(0)??'n/d'} ms · descartes {state?.dropped??0} · {Object.entries(state?.dropReasons||{}).map(([key,value])=>`${key}: ${value}`).join(' · ')}</dd>
+     <dt>Perda na ponte</dt><dd>{rates.localBridgePacketLoss??'n/d'} pacotes RTP · perda no túnel indisponível</dd>
+     <dt>Codec e eficiência</dt><dd>{rates.codec??'n/d'} · encoder {rates.encoder??'n/d'} ({efficiencyText(rates.efficientEncoder)}) · decoder {rates.decoder??'n/d'} ({efficiencyText(rates.efficientDecoder)})</dd>
+    </dl>}
+   </details>
+  </SettingsSurface>
+  {directory !== null && <ScreenShareDirectory streams={streams} selected={directory} watching={watchId} ready={canStartMedia} onClose={() => setDirectory(null)} onWatch={selectStream}/>}
+  {pick && <div className="modal-overlay screen-picker"><section className="modal screen-preview" role="dialog" aria-label="Prévia antes de transmitir">
+   <button className="close icon" aria-label="Cancelar compartilhamento" onClick={() => stopSharing()}><X/></button>
+   <h2>Confira a fonte selecionada</h2>
+   <Video stream={preview} preview/>
+   <p>{preview?.getVideoTracks()[0]?.label || 'Aguardando sua escolha no seletor do sistema…'}</p>
+   {captureNote && <p role="status">{captureNote}</p>}
+   <button className="primary" disabled={busy||!preview||!canStartMedia} onClick={() => void start()}>Iniciar compartilhamento</button>
+   <button className="secondary" onClick={() => stopSharing()}>Cancelar</button>
+   <p>Ao iniciar, a fonte e o áudio compatível são transmitidos ao vivo. Se minimizar, use a bandeja para parar a transmissão.</p>
+   {error && <p role="alert">{error}</p>}
+  </section></div>}
+ </>;
 });
+
+function rateText(value?: number | null) { return value?.toFixed(1) ?? 'n/d'; }
+function efficiencyText(value?: boolean | null) { return value==null ? 'n/d' : value ? 'eficiente' : 'não reportado como eficiente'; }

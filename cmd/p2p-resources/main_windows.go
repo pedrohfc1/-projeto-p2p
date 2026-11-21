@@ -64,7 +64,7 @@ func main() {
 		binary.LittleEndian.PutUint32(fixed[i*4:], value)
 	}
 	strings := [][]byte{}
-	for _, field := range [][2]string{{"CompanyName", "PeeTwoPee"}, {"FileDescription", "PeeTwoPee"}, {"FileVersion", "0.10.7.0"}, {"InternalName", "PeeTwoPee"}, {"OriginalFilename", filepath.Base(os.Args[1])}, {"ProductName", "PeeTwoPee"}, {"ProductVersion", "0.10.7.0"}} {
+	for _, field := range [][2]string{{"CompanyName", "PeeTwoPee"}, {"FileDescription", "PeeTwoPee"}, {"FileVersion", "0.11.0.0"}, {"InternalName", "PeeTwoPee"}, {"OriginalFilename", filepath.Base(os.Args[1])}, {"ProductName", "PeeTwoPee"}, {"ProductVersion", "0.11.0.0"}} {
 		value := utf16Bytes(field[1])
 		strings = append(strings, resourceBlock(field[0], value, uint16(len(value)/2), 1))
 	}
@@ -73,7 +73,7 @@ func main() {
 	translation := resourceBlock("Translation", []byte{9, 4, 0xb0, 4}, 4, 0)
 	varInfo := resourceBlock("VarFileInfo", nil, 0, 1, translation)
 	put(16, 1, resourceBlock("VS_VERSION_INFO", fixed, 52, 0, stringInfo, varInfo))
-	manifest := []byte(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"><assemblyIdentity version="0.10.7.0" processorArchitecture="amd64" name="PeeTwoPee.Setup" type="win32"/><trustInfo xmlns="urn:schemas-microsoft-com:asm.v3"><security><requestedPrivileges><requestedExecutionLevel level="asInvoker" uiAccess="false"/></requestedPrivileges></security></trustInfo></assembly>`)
+	manifest := []byte(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"><assemblyIdentity version="0.11.0.0" processorArchitecture="amd64" name="PeeTwoPee.Setup" type="win32"/><trustInfo xmlns="urn:schemas-microsoft-com:asm.v3"><security><requestedPrivileges><requestedExecutionLevel level="asInvoker" uiAccess="false"/></requestedPrivileges></security></trustInfo></assembly>`)
 	ok, _, e := dll.NewProc("UpdateResourceW").Call(h, 24, 1, 0, uintptr(unsafe.Pointer(&manifest[0])), uintptr(len(manifest)))
 	if ok == 0 {
 		dll.NewProc("EndUpdateResourceW").Call(h, 1)

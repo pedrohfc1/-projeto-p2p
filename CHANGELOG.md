@@ -1,3 +1,9 @@
+## 0.11.0 — perfis, imagens e sons
+
+- Perfis Ed25519 com revisão, avatar otimizado por hash e fontes locais.
+- Imagens de comunidades e salas com autorização do proprietário e cache local.
+- Efeitos sonoros opcionais para eventos de voz e compartilhamento.
+
 ## 0.10.7 — estabilidade de voz e vídeo
 
 - O envio de vídeo descarta quadros antigos e dá prioridade ao Opus quando a fila de áudio cresce.

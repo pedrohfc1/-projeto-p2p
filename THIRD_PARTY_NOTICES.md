@@ -21,3 +21,13 @@ etcat (Apache-2.0) e EasyTier (LGPL-3.0) recompilados, sem drivers. Fontes corre
 ## Wails — política de consentimento do build Windows 0.7
 
 O build Windows usa Wails v2.17.0 sob sua licença MIT, preservada no pacote de licenças. `scripts/prepare-webview-policy.py` verifica a versão e o hash revisado de `internal/frontend/desktop/windows/frontend.go`, copia o SDK para um diretório de build e muda somente a chamada global de `CoreWebView2PermissionStateAllow` para `CoreWebView2PermissionStateDefault`. A cópia do cache de módulos não é modificada. `scripts/build-desktop.ps1` usa essa cópia temporariamente e restaura go.mod/go.sum ao terminar. O código e os scripts da modificação acompanham os fontes do PeeTwoPee. Não é mudança das permissões de privacidade do Windows.
+
+## Fontes offline para nomes de perfil
+
+Famílias Inter, Poppins, Montserrat, Space Grotesk e JetBrains Mono, distribuídas sob SIL Open Font License 1.1. Os subconjuntos Latin em WOFF2 foram obtidos dos pacotes Fontsource 5.3.0. Os avisos de copyright e as licenças vêm junto aos arquivos em `frontend/public/fonts/profile/` e no pacote de licenças. Apenas o ID da família acompanha o perfil sincronizado.
+
+- [Inter](https://fontsource.org/fonts/inter/use)
+- [Poppins](https://fontsource.org/fonts/poppins/use)
+- [Montserrat](https://fontsource.org/fonts/montserrat/use)
+- [Space Grotesk](https://fontsource.org/fonts/space-grotesk/use)
+- [JetBrains Mono](https://fontsource.org/fonts/jetbrains-mono/use)

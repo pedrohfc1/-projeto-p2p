@@ -1,5 +1,5 @@
 export type DiagnosticEvent={id:number;time:number;level:'INFO'|'WARN'|'ERROR';category:'voice'|'video'|'network';component:string;message:string};
-export type DiagnosticFilter='all'|'voice'|'video'|'network'|'errors';
+export type DiagnosticFilter='all'|'voice'|'video'|'network'|'authorization'|'errors';
 export function redact(value:unknown):string {
  let s=String(value).slice(0,4096);
  s=s.replace(/(?:peetwopee|projetop2p):\/\/\S+|Bearer\s+\S+|(?:token|secret|password|private.?key|invite|sdp|credential)["']?\s*[:=]\s*["']?[^\s,;]+|(?:12D3KooW|Qm)[A-Za-z0-9]+|[A-Za-z0-9_+/=-]{40,}/gi,'[oculto]');
@@ -13,7 +13,12 @@ export class DiagnosticBuffer {
 }
 export const diagnosticBuffer=new DiagnosticBuffer();
 export function diagnostic(level:DiagnosticEvent['level'],category:DiagnosticEvent['category'],component:string,message:unknown){try{diagnosticBuffer.add({time:Date.now(),level,category,component,message:redact(message)})}catch{/* Diagnostics must never interrupt media. */}}
-export function filtered(rows:DiagnosticEvent[],filter:DiagnosticFilter){return rows.filter(r=>filter==='all'||(filter==='errors'?r.level==='ERROR':r.category===filter))}
+export function filtered(rows:DiagnosticEvent[],filter:DiagnosticFilter) {
+ if (filter==='all') return rows;
+ if (filter==='errors') return rows.filter(row=>row.level==='ERROR');
+ if (filter==='authorization') return rows.filter(row=>row.category==='voice'&&/(voice_authorization|autoriza[cç][aã]o)/i.test(row.component+' '+row.message));
+ return rows.filter(row=>row.category===filter);
+}
 export function formatEvent(r:DiagnosticEvent){const d=new Date(r.time);return `${d.toLocaleTimeString('pt-BR',{hour12:false})}.${String(d.getMilliseconds()).padStart(3,'0')} ${r.level.padEnd(5)} [${r.component}] ${r.message}`}
 // Existing structured codec diagnostics, with an explicit field allowlist.
 let installed=false;

@@ -13,6 +13,7 @@ import (
 	"projetop2p/internal/endpoint"
 	"projetop2p/internal/invite"
 	"projetop2p/internal/localdb"
+	"projetop2p/internal/profile"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,7 @@ type Service struct {
 	routes    map[string]map[string]peerRoute
 	cursors   map[string]uint64
 	db        *localdb.DB
+	assets    *profile.Store
 	key       crypto.PrivKey
 	id        string
 	mu        sync.Mutex
@@ -49,9 +51,14 @@ type Receipt struct {
 }
 
 func New(ctx context.Context, db *localdb.DB, key crypto.PrivKey) *Service {
+	return NewWithAssets(ctx, db, key, nil)
+}
+
+func NewWithAssets(ctx context.Context, db *localdb.DB, key crypto.PrivKey, assets *profile.Store) *Service {
 	id, _ := peer.IDFromPrivateKey(key)
 	ctx, cancel := context.WithCancel(ctx)
-	s := &Service{routes: map[string]map[string]peerRoute{}, cursors: map[string]uint64{}, db: db, key: key, id: id.String(), scope: "auto", syncSlot: make(chan struct{}, 1), ctx: ctx, cancel: cancel}
+	s := &Service{routes: map[string]map[string]peerRoute{}, cursors: map[string]uint64{}, db: db, assets: assets, key: key, id: id.String(), scope: "auto", syncSlot: make(chan struct{}, 1), ctx: ctx, cancel: cancel}
+	s.keepArtwork()
 	s.wg.Add(2)
 	go s.peerWatch()
 	go s.watch()
@@ -187,6 +194,12 @@ func (s *Service) Handle(ctx context.Context, remote string, req community.Reque
 		return errorResponse("membership_required", "ingresso ainda nao confirmado; consulte o resultado do convite")
 	}
 	switch req.Method {
+	case community.ArtworkRequest:
+		a, err := s.db.Artwork(r.ID)
+		if err == nil && a.Revision > req.After && a.Verify(r.State) == nil {
+			return community.Response{Artwork: &a, Commits: []community.Commit{}}
+		}
+		return community.Response{Commits: []community.Commit{}}
 	case "invite.status":
 		if !r.State.Manages(remote) {
 			return errorResponse("forbidden", "moderator or owner role required")
@@ -660,7 +673,11 @@ func (s *Service) Sync(ctx context.Context, id string) error {
 	if e = s.flush(ctx, r, false); e != nil {
 		return fail(e)
 	}
-	return fail(s.read(ctx, id))
+	if e = s.read(ctx, id); e != nil {
+		return fail(e)
+	}
+	s.syncArtwork(ctx, r)
+	return nil
 }
 func (s *Service) Discard(id, op string) error {
 	return s.db.CommunityPendingStatus(id, op, "delete", "")

@@ -8,6 +8,7 @@ import (
 )
 
 type Summary struct {
+	IconHash       string              `json:"iconHash,omitempty"`
 	AuthorityState string              `json:"authorityState"`
 	ID             string              `json:"id"`
 	Name           string              `json:"name"`
@@ -69,7 +70,16 @@ func (s *Service) summary(r localdb.CommunityRecord) Summary {
 	for _, m := range r.State.Members {
 		v.Members = append(v.Members, m)
 	}
+	artwork, err := s.db.Artwork(r.ID)
+	if err == nil && !r.Denied && r.State.Role(s.id) != "" && artwork.Verify(r.State) == nil {
+		v.IconHash = artwork.Icons[""]
+	} else {
+		artwork.Icons = nil
+	}
 	for _, ch := range r.State.Channels {
+		if !ch.Deleted {
+			ch.IconHash = artwork.Icons[ch.ID]
+		}
 		v.Channels = append(v.Channels, ch)
 	}
 	sort.Slice(v.Members, func(i, j int) bool { return v.Members[i].ID < v.Members[j].ID })

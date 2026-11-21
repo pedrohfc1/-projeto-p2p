@@ -168,7 +168,7 @@ func main() {
 		return
 	}
 	if *version {
-		fmt.Println("0.10.7")
+		fmt.Println("0.11.0")
 		return
 	}
 	if !bindingGeneration && goruntime.GOOS == "windows" && permissionPolicy != "prompt-v1" {
@@ -199,7 +199,7 @@ func main() {
 			return
 		}
 		defer guard.Close()
-		verifiedBinary, e := installtxn.VerifyExecutable(executable, "0.10.7")
+		verifiedBinary, e := installtxn.VerifyExecutable(executable, "0.11.0")
 		if e != nil {
 			lifecycle.ShowError(e.Error())
 			return

@@ -85,12 +85,13 @@ type Member struct {
 	Removed bool   `json:"removed"`
 }
 type Channel struct {
-	Role    string `json:"role,omitempty"`
-	Limit   int    `json:"limit,omitempty"`
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Kind    string `json:"kind"`
-	Deleted bool   `json:"deleted"`
+	IconHash string `json:"iconHash,omitempty"`
+	Role     string `json:"role,omitempty"`
+	Limit    int    `json:"limit,omitempty"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Kind     string `json:"kind"`
+	Deleted  bool   `json:"deleted"`
 }
 type State struct {
 	MemberLimit    int                `json:"memberLimit,omitempty"`

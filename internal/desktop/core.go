@@ -25,6 +25,7 @@ import (
 	"projetop2p/internal/messaging"
 	"projetop2p/internal/network"
 	"projetop2p/internal/overlay"
+	"projetop2p/internal/profile"
 	"projetop2p/internal/roomprobe"
 	"projetop2p/internal/telemetry"
 	"projetop2p/internal/transportaddr"
@@ -50,6 +51,7 @@ type Core struct {
 	lastEvent  string
 	lastTest   *ConnectionTest
 	groups     *communities.Service
+	profiles   *profile.Store
 	enumerate  adapters.Provider
 	selection  adapters.Selection
 	networkErr string
@@ -110,7 +112,13 @@ func OpenWithProvider(parent context.Context, dir string, provider adapters.Prov
 		db.Close()
 		return nil, e
 	}
-	c.groups = communities.New(ctx, db, key)
+	c.profiles, e = profile.Open(dir, key, settings.Name)
+	if e != nil {
+		cancel()
+		db.Close()
+		return nil, e
+	}
+	c.groups = communities.NewWithAssets(ctx, db, key, c.profiles)
 	_ = c.db.PollInbox(c.selfID(), nil)
 	c.synchronize(settings)
 	c.wg.Add(2)
@@ -196,6 +204,9 @@ func (c *Core) start(s localdb.Settings) error {
 		return c.groups.Handle(ctx, remote, req)
 	})
 	c.groups.Attach(n, mode(s))
+	if c.profiles != nil {
+		n.SetProfileStore(c.profiles, c.groups.AuthorizeArtwork)
+	}
 	contacts, e := c.db.Contacts()
 	if e != nil {
 		v.Close()
@@ -336,6 +347,11 @@ func (c *Core) State(selected string) (State, error) {
 		for _, v := range s.Network.Peers {
 			if v.ID == p.ID {
 				path = v.Path
+			}
+		}
+		if c.profiles != nil {
+			if item, ok := c.profiles.Get(p.ID); ok {
+				p.Name = item.DisplayName
 			}
 		}
 		s.Contacts = append(s.Contacts, ContactView{Contact: p, Path: path})
@@ -495,6 +511,23 @@ func (c *Core) SaveSettings(s localdb.Settings) error {
 	return c.saveSettingsLocked(s)
 }
 func (c *Core) saveSettingsLocked(s localdb.Settings) error {
+	if c.profiles != nil {
+		previous, err := c.db.Settings()
+		if err != nil {
+			return err
+		}
+		if previous.Name != s.Name {
+			local := c.profiles.Local()
+			updated, err := c.profiles.Update(s.Name, local.DisplayFontID, local.AvatarHash)
+			if err != nil {
+				return err
+			}
+			s.Name = updated.DisplayName
+			if c.node != nil && updated.Revision != local.Revision {
+				c.node.ProfileChanged()
+			}
+		}
+	}
 	s.Mode = mode(s)
 	if s.Mode != "auto" {
 		s.Port = port(s)

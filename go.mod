@@ -15,6 +15,7 @@ require (
 	github.com/pion/webrtc/v4 v4.2.26
 	github.com/wailsapp/wails/v2 v2.17.0
 	go.etcd.io/bbolt v1.5.0
+	golang.org/x/image v0.46.0
 	golang.org/x/net v0.59.0
 	golang.org/x/sys v0.48.0
 	google.golang.org/protobuf v1.36.12

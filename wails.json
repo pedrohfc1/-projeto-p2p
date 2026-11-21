@@ -7,5 +7,5 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {"name": "PeeTwoPee", "email": ""},
-  "info": {"companyName":"PeeTwoPee","productName":"PeeTwoPee","productVersion":"0.10.7","copyright":"PeeTwoPee","comments":"Mensageiro descentralizado"}
+  "info": {"companyName":"PeeTwoPee","productName":"PeeTwoPee","productVersion":"0.11.0","copyright":"PeeTwoPee","comments":"Mensageiro descentralizado"}
 }

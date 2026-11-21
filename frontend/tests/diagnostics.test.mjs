@@ -7,3 +7,12 @@ test('filters distinguish category from errors and preserve timestamp millisecon
 test('console capture accepts only actual media event names and allowed structured counters',()=>{diagnosticBuffer.clear();const original=console.info;console.info=()=>{};captureMediaConsole();console.info('chat_text',{text:'never capture private text'});console.info('voice_codec_io',{bytes:300,packets:15,token:'secret',text:'private content'});const r=diagnosticBuffer.snapshot();assert.equal(r.length,1);assert.match(r[0].message,/packets=15/);assert.ok(!r[0].message.includes('private'));assert.ok(!r[0].message.includes('secret'));console.info=original});
 
 test('confirmed copy uses the browser user gesture, falls back to native and reports failure honestly',async()=>{const calls=[];await copyDiagnosticText('safe',async()=>calls.push('native'),async s=>calls.push('browser:'+s));assert.deepEqual(calls,['browser:safe']);await copyDiagnosticText('safe',async s=>calls.push('native:'+s),async()=>{throw Error('Denied')});assert.equal(calls.at(-1),'native:safe');await assert.rejects(copyDiagnosticText('safe',async()=>{throw Error('Clipboard unavailable')}),/unavailable/)});
+
+test('authorization filter isolates structured voice authorization events',()=>{
+ const b=new DiagnosticBuffer();
+ b.add({...row(),message:'voice_authorization result=renewed'});
+ b.add({...row(),message:'Mídia pausada durante renovação da autorização'});
+ b.add({...row(),message:'Opus RX'});
+ b.add({...row(),category:'network',message:'authorization'});
+ assert.equal(filtered(b.snapshot(),'authorization').length,2);
+});

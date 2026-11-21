@@ -69,6 +69,7 @@ type committedReceipt struct {
 	at     time.Time
 }
 type Node struct {
+	profiles          *profileSync
 	mediaObservations mediaObservations
 	receiveMu         sync.Mutex
 	committed         map[string]committedReceipt

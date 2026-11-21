@@ -113,10 +113,21 @@ func (h Handler) Enabled(ctx context.Context, l slog.Level) bool {
 	return l >= slog.LevelInfo || h.Next.Enabled(ctx, l)
 }
 func (h Handler) Handle(ctx context.Context, r slog.Record) error {
-	if r.Message == "voice_authorization" || r.Message == "voice_transport" || r.Message == "voice_media_counters" || r.Message == "community_connectivity" || r.Message == "screen_audio_capture" || r.Message == "screen_audio_network" {
+	var profileEvent bool
+	switch r.Message {
+	case "profile_updated", "avatar_changed", "avatar_asset_requested", "avatar_asset_received", "avatar_hash_mismatch", "community_icon_updated":
+		profileEvent = true
+	}
+	if profileEvent || r.Message == "voice_authorization" || r.Message == "voice_transport" || r.Message == "voice_media_counters" || r.Message == "community_connectivity" || r.Message == "screen_audio_capture" || r.Message == "screen_audio_network" {
 		parts := []string{r.Message}
 		screenAudio := strings.HasPrefix(r.Message, "screen_audio_")
 		r.Attrs(func(a slog.Attr) bool {
+			if profileEvent {
+				if a.Key == "revision" || a.Key == "size" {
+					parts = append(parts, a.Key+"="+fmt.Sprint(a.Value.Any()))
+				}
+				return true
+			}
 			if a.Key == "flow" && strings.HasPrefix(fmt.Sprint(a.Value.Any()), "screen-audio/") {
 				screenAudio = true
 			}
@@ -136,10 +147,14 @@ func (h Handler) Handle(ctx context.Context, r slog.Record) error {
 		if screenAudio {
 			category = "video"
 		}
-		if r.Message == "community_connectivity" {
+		if profileEvent || r.Message == "community_connectivity" {
 			category = "network"
 		}
-		Local.TryAdd(level, category, "backend/libp2p", strings.Join(parts, " "))
+		component := "backend/libp2p"
+		if profileEvent {
+			component = "backend/perfil"
+		}
+		Local.TryAdd(level, category, component, strings.Join(parts, " "))
 	}
 	if h.Next.Enabled(ctx, r.Level) {
 		return h.Next.Handle(ctx, r)

@@ -26,6 +26,7 @@ type Request struct {
 	Operation     *Operation     `json:"operation,omitempty"`
 }
 type Response struct {
+	Artwork          *Artwork          `json:"artwork,omitempty"`
 	Activities       []chat.Entry      `json:"activities,omitempty"`
 	ActivityCursor   uint64            `json:"activityCursor,omitempty"`
 	PeerInvites      []string          `json:"peerInvites,omitempty"`

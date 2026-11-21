@@ -7,7 +7,7 @@ try {
  if (-not (Test-Path $DesktopExecutable)) {throw 'Execute o build Wails antes de empacotar.'}
  $versionFile=Join-Path (Resolve-Path build/bin).Path 'app-version.txt'
  $versionProc=Start-Process -FilePath (Resolve-Path $DesktopExecutable).Path -ArgumentList '--version' -RedirectStandardOutput $versionFile -WindowStyle Hidden -Wait -PassThru
- if ($versionProc.ExitCode -ne 0 -or (Get-Content $versionFile -Raw).Trim() -ne '0.10.7') {throw 'Expected a Wails desktop build matching VERSION (0.10.7).'}
+ if ($versionProc.ExitCode -ne 0 -or (Get-Content $versionFile -Raw).Trim() -ne '0.11.0') {throw 'Expected a Wails desktop build matching VERSION (0.11.0).'}
  $policyFile=Join-Path (Resolve-Path build/bin).Path 'app-permission-policy.txt'
  $policyProc=Start-Process -FilePath (Resolve-Path $DesktopExecutable).Path -ArgumentList '--permission-policy' -RedirectStandardOutput $policyFile -WindowStyle Hidden -Wait -PassThru
  if ($policyProc.ExitCode -ne 0 -or (Get-Content $policyFile -Raw).Trim() -ne 'prompt-v1'){throw 'Desktop sem politica de consentimento verificada'}
@@ -32,7 +32,7 @@ try {
  Copy-Item $helper cmd/p2p-setup/payload/etcat-p2p.exe -Force
  Copy-Item dist/release/EasyTier-corresponding-source.zip cmd/p2p-setup/payload/EasyTier-corresponding-source.zip -Force
  Copy-Item LICENSE cmd/p2p-setup/payload/LICENSE.txt -Force
- Copy-Item dist/release/PeeTwoPee-v0.10.7-licencas-windows.zip cmd/p2p-setup/payload/THIRD_PARTY_LICENSES.zip -Force
+ Copy-Item dist/release/PeeTwoPee-v0.11.0-licencas-windows.zip cmd/p2p-setup/payload/THIRD_PARTY_LICENSES.zip -Force
  $legacyPayload=Join-Path (Resolve-Path cmd/p2p-setup/payload).Path 'PeeTwoPee.exe'
  if (Test-Path -LiteralPath $legacyPayload) {Remove-Item -LiteralPath $legacyPayload -Force}
  $source=[IO.File]::OpenRead((Resolve-Path $DesktopExecutable).Path)
@@ -45,12 +45,12 @@ try {
  & $GoCommand run ./cmd/p2p-resources (Resolve-Path cmd/p2p-setup/payload/uninstall.exe).Path
  if ($LASTEXITCODE -ne 0) {throw 'Manifest do desinstalador falhou'}
  if ($SigningThumbprint) {./scripts/sign-windows.ps1 -Files @('cmd/p2p-setup/payload/uninstall.exe') -Thumbprint $SigningThumbprint}
- & $GoCommand build -buildvcs=false -trimpath -ldflags '-H windowsgui' -o build/bin/PeeTwoPee-Setup-v0.10.7.exe ./cmd/p2p-setup
+ & $GoCommand build -buildvcs=false -trimpath -ldflags '-H windowsgui' -o build/bin/PeeTwoPee-Setup-v0.11.0.exe ./cmd/p2p-setup
  if ($LASTEXITCODE -ne 0) {throw 'Build do instalador falhou'}
- & $GoCommand run ./cmd/p2p-resources (Resolve-Path build/bin/PeeTwoPee-Setup-v0.10.7.exe).Path
+ & $GoCommand run ./cmd/p2p-resources (Resolve-Path build/bin/PeeTwoPee-Setup-v0.11.0.exe).Path
  if ($LASTEXITCODE -ne 0) {throw 'Manifest do instalador falhou'}
- if ($SigningThumbprint) {./scripts/sign-windows.ps1 -Files @('build/bin/PeeTwoPee-Setup-v0.10.7.exe') -Thumbprint $SigningThumbprint}
- $setup=(Resolve-Path build/bin/PeeTwoPee-Setup-v0.10.7.exe).Path
+ if ($SigningThumbprint) {./scripts/sign-windows.ps1 -Files @('build/bin/PeeTwoPee-Setup-v0.11.0.exe') -Thumbprint $SigningThumbprint}
+ $setup=(Resolve-Path build/bin/PeeTwoPee-Setup-v0.11.0.exe).Path
  $output=Join-Path (Resolve-Path build/bin).Path 'setup-payload.json'
  $proc=Start-Process -FilePath $setup -ArgumentList '--verify-payload' -RedirectStandardOutput $output -WindowStyle Hidden -Wait -PassThru
  if ($proc.ExitCode -ne 0) {throw 'Falha ao verificar payload do setup'}

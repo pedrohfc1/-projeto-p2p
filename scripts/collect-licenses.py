@@ -27,5 +27,6 @@ with zipfile.ZipFile(out/f'PeeTwoPee-v{v}-licencas-{platform.system().lower()}.z
   except (ValueError,UnicodeError):continue
   if meta.get('name') and meta.get('version'):
    packages.append({k:meta[k] for k in ('name','version','license') if k in meta});notices(z,f.parent,'npm/'+str(f.parent.relative_to(p/'frontend/node_modules')))
+ notices(z,p/'frontend/public/fonts/profile','fonts/profile')
  put(z,'npm-packages.json',json.dumps(packages,indent=2))
 print('PASS: dependency notices and inventories packaged')

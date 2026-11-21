@@ -1,4 +1,5 @@
 export function callStatus(state:string,participants:number,tx?:number,rx?:number){return state==='authorization-paused'?'Mídia pausada · autorização':state==='connected'?(tx===0&&rx===0?'Mídia aberta · aguardando áudio':'Voz conectada'):participants<=1?'Na sala · aguardando participantes':state==='connecting'?'Conectando mídia':'Na sala · reconectando mídia'}
 export function callDuration(seconds:number){const value=Math.max(0,Math.floor(seconds));return value>=3600?`${Math.floor(value/3600)}:${String(Math.floor(value/60)%60).padStart(2,'0')}:${String(value%60).padStart(2,'0')}`:`${Math.floor(value/60)}:${String(value%60).padStart(2,'0')}`}
-export type ScreenControls={toggle:()=>void;preview:(id:string)=>void};
-export type ScreenControlState={ready:boolean;sharing:boolean;busy:boolean;peers?:{id:string;name:string;sharing:boolean;connected?:boolean}[]};
+export type ScreenControls={toggle:()=>void;preview:(id:string)=>void;showStreams:()=>void;focus:()=>void};
+export type ScreenQuality={width?:number|null;height?:number|null;fps?:number|null};
+export type ScreenControlState={ready:boolean;sharing:boolean;busy:boolean;session?:string;watching?:string;playing?:string;viewers?:number;theater?:boolean;streamsOpen?:boolean;quality?:ScreenQuality;peers?:{id:string;name:string;sharing:boolean;connected?:boolean;statusKnown?:boolean}[]};
